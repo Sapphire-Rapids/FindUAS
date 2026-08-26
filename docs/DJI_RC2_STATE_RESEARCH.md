@@ -124,6 +124,39 @@ DJI's own US FAQ distinguishes the DJI Fly PFST/status from checking another dev
 `RID-` network followed by the 20-character Remote ID serial number. FindUAS should call the first
 state “aircraft-reported normal” and reserve “broadcast verified” for the second level.
 
+### Debug, development, and authorized exception mechanisms
+
+No generic local `force RID working` or `disable RID` debug boolean was found. The mechanisms that
+do exist have narrower scopes:
+
+| Mechanism | Actual scope | Why it is not a generic RID switch |
+| --- | --- | --- |
+| `setUASRemoteIDAreaStrategy()` | selects the MSDK regional delegate and feature interpretation | retained 5.18.0 logic checks the real area and rejects mismatches, with extra China restrictions |
+| internal Japanese registration SN mock | substitutes the SN sent to the Japanese registration web page in develop builds | does not write working status, PFST, or broadcast state |
+| French `EIDSwitch` | enables/disables the French EID standard on supported products | not the common FAA/EU/China/Japan RID broadcast control |
+| FlySafe `RID_UNLOCK` license | authorized European or China RID exception | requires a matching, enabled managed license and produces `NO_BROADCAST` |
+| RID cloud-control V2 | selects region/product data and sends it to the flight controller | no direct working-state or broadcast override was found |
+
+DJI documents the area-strategy setter as useful during development. Static analysis of the
+official 5.18.0 provided artifact shows that the retained implementation maps the strategy to an
+area code, compares it with the reported real area, allows the appropriate EU-region equivalence,
+and blocks transitions into or out of the China strategy. It changes the SDK delegate; it is not
+evidence that an application can freely change the aircraft's real regulatory region.
+
+The internal `RidInnerManager` contains a boolean and `JAPAN_RID_MOCK_SN`. Its only recovered
+consumer replaces the aircraft SN in the Japanese web-registration initialization path when the
+application is in its internal/develop state. No link to `KeyRidWorkingStatusPush`, `isRidNormal`,
+PFST, or over-the-air transmission was found.
+
+The official FlySafe model includes `RID_UNLOCK`; current code recognizes European and China
+types. The default UAS delegate accepts only an enabled license matching the current area strategy,
+then reports broadcasting disabled and state `NO_BROADCAST`. This is a managed authorization
+mechanism, not a locally generated debug toggle.
+
+`IsEuCeEnableC0Rid` is a get/set, non-listening FC key, but it has no recovered UI or business
+caller. It remains an EU C0 compliance candidate until its native mapping and product conditions
+are recovered; the name alone is insufficient to classify it as a debug switch.
+
 ## DJI account: what “correctly logged in” means
 
 The implementation has three separate layers. A single green account UI state does not prove all
@@ -172,6 +205,37 @@ Although `KeyFCUUIDSetting` is declared get/set/listen capable, the recovered no
 does not read it back and compare it with the current account UID after a successful set. The exact
 native/DUML mapping and aircraft-firmware acceptance predicate remain unverified.
 
+Additional read-only keys expose more of the aircraft-side state:
+
+| Key | Access | Interpretation |
+| --- | --- | --- |
+| `FCHasWrittenUUID` | get/listen | whether the FC has a UUID |
+| `FCAllUUIDSetting` | get/listen | timestamped UUID history in the recovered parser |
+| `FCWhiteListUnlimitEnable` | get/listen | FlySafe/GEO whitelist state, not the account-limit path |
+
+The legacy midware parser places the read paths under FLYC `Detection` (`0xDA`) as `GetUUID=8`,
+`GetIsSetUUID=9`, and `GetAllUUID=11`. These are candidates for a privacy-preserving read-only
+verification step; no real UID was queried or stored during this work.
+
+The `IsFakeUuidSupport` key is also get/listen only. DJI Fly injects the fixed compatibility UUID
+only when the connected aircraft reports that capability. No local preference, developer screen,
+or account option was found that can set it.
+
+The hidden developer settings screen controls display-equipment mode and a 1–20 detection-distance
+parameter. It has no login, UID, or 30/50 m override. A generic cloud gray-test service can bucket
+devices by UUID hash modulo ten, but no caller connects it to account login, `FCUUIDSetting`, or
+diagnostic `3000003` in the recovered source.
+
+MSDK 5.18.0 also retains a concrete `updateLoginInfoForCSDK()` method that is absent from the
+public `IUserAccountManager` interface. Its retained bytecode forwards account fields to the system
+information manager; the normal login path separately updates local `LoginInfo`, persistence, and
+listeners. It is therefore not equivalent to forcing the account manager into a logged-in state.
+Because the provided artifact contains leading stub returns, this is static structural evidence,
+not a runtime claim.
+
+No writable debug/override switch for the unauthenticated 30 m height / 50 m distance restriction
+was found.
+
 ### Why diagnostic 3000003 is insufficient
 
 The UI `WriteUuidLogic` combines only:
@@ -203,9 +267,9 @@ DJI Fly `3000003` warning covers only the first layer.
 
 ## Remaining read-only work
 
-1. Recover the native/DUML mapping for `KeyFCUUIDSetting`, `KeyEIDSwitch`, and aircraft binding.
-2. Determine whether a read-only FC UUID getter is usable on the RC 2 path and whether it returns a
-   raw UID, a presence flag, or a derived value.
+1. Recover the native/DUML mapping for `KeyEIDSwitch`, `IsEuCeEnableC0Rid`, and aircraft binding.
+2. Determine whether `FCHasWrittenUUID` and the read-only FC UUID getters are usable on the RC 2
+   path, using redacted comparison and never persisting a raw UID.
 3. Recover the RC 2 GNSS-to-RID operator-location injection path and validate the candidate native
    command without changing state.
 4. Compare a redacted DJI Fly RID state push with a simultaneous independent receiver capture.
@@ -214,6 +278,7 @@ DJI Fly `3000003` warning covers only the first layer.
 ## Primary sources
 
 - [DJI MSDK V5 `IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
+- [DJI MSDK V5 `IFlyZoneManager` / `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
 - [DJI MSDK V5.18.0 aircraft-provided artifact](https://repo1.maven.org/maven2/com/dji/dji-sdk-v5-aircraft-provided/5.18.0/dji-sdk-v5-aircraft-provided-5.18.0.jar)
 - [DJI FAA Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI account/offline-limit support note](https://repair.dji.com/help/content?customId=en-us03400011758&pbc=mF6h4ZTt&spaceId=34)
