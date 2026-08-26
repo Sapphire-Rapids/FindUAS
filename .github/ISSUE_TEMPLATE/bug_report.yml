@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a macOS application or receiver connection problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not upload unredacted UAS IDs, precise coordinates, phone numbers, or complete telemetry logs.
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac model
+    validations:
+      required: true
+  - type: input
+    id: receiver
+    attributes:
+      label: Receiver name and firmware version
+      description: Redact its serial number if it is not needed.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Include packet sizes, counters, protocol mode, and redacted field structure when relevant.

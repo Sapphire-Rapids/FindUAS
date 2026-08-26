@@ -1,0 +1,21 @@
+name: macOS CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Show Swift version
+        run: swift --version
+      - name: Run protocol checks
+        run: swift run FindUASCoreChecks
+      - name: Build release client
+        run: swift build -c release --product FindUASMac

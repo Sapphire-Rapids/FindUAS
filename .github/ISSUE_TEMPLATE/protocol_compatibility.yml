@@ -1,0 +1,32 @@
+name: Protocol compatibility
+description: Report a new receiver firmware, frame format, or telemetry field variant
+title: "[Protocol]: "
+labels: [protocol]
+body:
+  - type: markdown
+    attributes:
+      value: Remove UAS IDs, exact coordinates, phone numbers, receiver serial numbers, and other personal data before submitting.
+  - type: input
+    id: hardware
+    attributes:
+      label: Receiver model and firmware
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport observed
+      options: [Legacy JSON, V2 frame, Unknown]
+    validations:
+      required: true
+  - type: textarea
+    id: structure
+    attributes:
+      label: Redacted frame or JSON structure
+      description: Prefer field names, lengths, and types over a complete real payload.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and expected mapping
