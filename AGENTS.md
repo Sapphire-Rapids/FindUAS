@@ -5,7 +5,7 @@ applies to the entire repository.
 
 ## Product boundary
 
-FindUASMac is an independent macOS client for the receiver sold for FindUAS/FindUAV systems. The
+FindUAS is an independent macOS client for the receiver sold for FindUAS/FindUAV systems. The
 Mac scans for and connects to the BLE receiver; the receiver, not the Mac, listens for aircraft
 Remote ID broadcasts. This is not a direct DJI/Autel aircraft client and is not official vendor
 software.

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve FindUASMac. Start with [AGENTS.md](AGENTS.md) and
+Thanks for helping improve FindUAS. Start with [AGENTS.md](AGENTS.md) and
 [the architecture notes](docs/ARCHITECTURE.md); both are written for human and automated
 contributors.
 

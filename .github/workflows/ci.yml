@@ -18,4 +18,4 @@ jobs:
       - name: Run protocol checks
         run: swift run FindUASCoreChecks
       - name: Build release client
-        run: swift build -c release --product FindUASMac
+        run: swift build -c release --product FindUAS

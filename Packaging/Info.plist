@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleDisplayName</key>
-    <string>FindUAS macOS Client</string>
+    <string>FindUAS</string>
     <key>CFBundleExecutable</key>
-    <string>FindUASMac</string>
+    <string>FindUAS</string>
     <key>CFBundleIdentifier</key>
     <string>com.finduas.desktop.mac</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>FindUAS macOS Client</string>
+    <string>FindUAS</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

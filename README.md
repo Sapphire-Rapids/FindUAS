@@ -1,6 +1,6 @@
-# FindUAS macOS Client
+# FindUAS
 
-[![macOS CI](https://github.com/Sapphire-Rapids/FindUASMac/actions/workflows/ci.yml/badge.svg)](https://github.com/Sapphire-Rapids/FindUASMac/actions/workflows/ci.yml)
+[![macOS CI](https://github.com/Sapphire-Rapids/FindUAS/actions/workflows/ci.yml/badge.svg)](https://github.com/Sapphire-Rapids/FindUAS/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 一个面向 macOS 的非官方、开源 FindUAS 接收器客户端。它通过蓝牙连接接收器，显示附近无人机
@@ -14,7 +14,7 @@
 ## 下载
 
 预编译的 Apple Silicon 版本见
-[GitHub Releases](https://github.com/Sapphire-Rapids/FindUASMac/releases/latest)。首次打开时可能需要在
+[GitHub Releases](https://github.com/Sapphire-Rapids/FindUAS/releases/latest)。首次打开时可能需要在
 Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐私与安全性 → 蓝牙”中允许 FindUAS。
 
 预编译包使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名与公证。源码构建不限制 CPU 架构，
@@ -87,7 +87,7 @@ Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐�
 成品生成在 `dist/FindUAS.app`，并经过 `plutil`、ad-hoc 签名及签名校验。也可以只构建可执行文件：
 
 ```sh
-swift build -c release --product FindUASMac
+swift build -c release --product FindUAS
 ```
 
 `dist/`、`.build/` 和 ZIP 包不会提交进仓库。Release 附件由干净的 `dist/FindUAS.app` 单独生成，

@@ -1,6 +1,6 @@
 # Security and privacy reporting
 
-Please use a private [GitHub Security Advisory](https://github.com/Sapphire-Rapids/FindUASMac/security/advisories/new)
+Please use a private [GitHub Security Advisory](https://github.com/Sapphire-Rapids/FindUAS/security/advisories/new)
 for vulnerabilities or reports that cannot be explained without sensitive receiver or flight data.
 Do not open a public issue containing real UAS IDs, receiver serial numbers, exact locations, phone
 numbers, full telemetry logs, or credentials.

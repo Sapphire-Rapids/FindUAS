@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "FindUASMac",
+    name: "FindUAS",
     defaultLocalization: "zh-Hans",
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "FindUASCore", targets: ["FindUASCore"]),
-        .executable(name: "FindUASMac", targets: ["FindUASMac"]),
+        .executable(name: "FindUAS", targets: ["FindUASMac"]),
         .executable(name: "FindUASCoreChecks", targets: ["FindUASCoreChecks"])
     ],
     targets: [
