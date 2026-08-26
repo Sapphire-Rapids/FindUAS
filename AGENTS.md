@@ -21,6 +21,8 @@ network services without an explicit product decision and privacy review.
 - `docs/PROTOCOL.md`: recovered and hardware-validated interoperability notes.
 - `docs/DJI_RC2_STATE_RESEARCH.md`: read-only DJI Fly/RC 2 Remote ID, account-state, and runtime
   flight-limit research; it is context, not a product integration contract.
+- `docs/DJI_RC2_RF_POWER_RESEARCH.md`: read-only DJI Fly/RC 2 regulatory area-code and FCC/CE RF
+  policy research; it is context, not a radio-modification implementation or product feature.
 - `docs/ARCHITECTURE.md`: data flow, ownership, persistence, and extension seams.
 - `scripts/`: local checks and clean `.app` packaging.
 - `Packaging/Info.plist`: bundle identity and macOS privacy usage descriptions.
@@ -76,6 +78,8 @@ Never commit:
 - real UAS IDs, receiver serial numbers, exact aircraft/operator coordinates, or phone numbers;
 - raw field captures that can be linked to a person or flight;
 - extracted APKs, vendor binaries, icons, sounds, model databases, or decompiled source;
+- executable RF-region/power profiles, blind DUML keepalive loops, or claims that a local socket
+  write proves actual EIRP changed;
 - `.build/`, `dist/`, app bundles, crash reports, or local JSONL history.
 
 Tests must use obviously synthetic identifiers and coordinates. Protocol issue templates require

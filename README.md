@@ -124,6 +124,8 @@ swift build -c release --product FindUAS
 - [docs/PROTOCOL.md](docs/PROTOCOL.md)：独立整理的 BLE 互操作说明；
 - [docs/DJI_RC2_STATE_RESEARCH.md](docs/DJI_RC2_STATE_RESEARCH.md)：DJI Fly/RC 2 对 Remote ID、
   账号同步与运行时飞行限制状态的只读研究；不属于 FindUAS 产品集成；
+- [docs/DJI_RC2_RF_POWER_RESEARCH.md](docs/DJI_RC2_RF_POWER_RESEARCH.md)：DJI Fly/RC 2 的地区码、
+  FCC/CE 法规档案与 O4 射频功率控制面的只读研究；不包含可执行功率修改包；
 - [CONTRIBUTING.md](CONTRIBUTING.md)：贡献与硬件报告流程；
 - [CHANGELOG.md](CHANGELOG.md)：用户可见变更。
 

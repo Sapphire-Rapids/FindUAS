@@ -11,6 +11,9 @@ It is research context, not a FindUAS product feature. FindUAS connects to the e
 receiver and reports what that receiver receives; it does not log in to DJI, control an aircraft,
 or replace an independent Remote ID receiver.
 
+The separate area-code, FCC/CE policy, and O4 RF-power investigation is in
+[`DJI_RC2_RF_POWER_RESEARCH.md`](DJI_RC2_RF_POWER_RESEARCH.md).
+
 ## Evidence levels and scope
 
 - **Direct**: visible in DJI Fly/SDK bytecode or verified against the current RC 2 with read-only
