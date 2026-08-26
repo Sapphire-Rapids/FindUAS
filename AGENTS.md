@@ -19,6 +19,8 @@ network services without an explicit product decision and privacy review.
 - `Sources/FindUASMac/`: CoreBluetooth lifecycle, persistence, and SwiftUI UI.
 - `Checks/`: executable regression checks; add protocol reproductions here.
 - `docs/PROTOCOL.md`: recovered and hardware-validated interoperability notes.
+- `docs/DJI_RC2_STATE_RESEARCH.md`: read-only DJI Fly/RC 2 Remote ID and account-state research;
+  it is context, not a product integration contract.
 - `docs/ARCHITECTURE.md`: data flow, ownership, persistence, and extension seams.
 - `scripts/`: local checks and clean `.app` packaging.
 - `Packaging/Info.plist`: bundle identity and macOS privacy usage descriptions.

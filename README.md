@@ -122,6 +122,8 @@ swift build -c release --product FindUAS
 - [AGENTS.md](AGENTS.md)：给人类与 coding agent 的交接约束、常见坑和发布清单；
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：数据流、模块职责、持久化与扩展边界；
 - [docs/PROTOCOL.md](docs/PROTOCOL.md)：独立整理的 BLE 互操作说明；
+- [docs/DJI_RC2_STATE_RESEARCH.md](docs/DJI_RC2_STATE_RESEARCH.md)：DJI Fly/RC 2 对 Remote ID
+  正常状态与账号登录状态的只读研究；不属于 FindUAS 产品集成；
 - [CONTRIBUTING.md](CONTRIBUTING.md)：贡献与硬件报告流程；
 - [CHANGELOG.md](CHANGELOG.md)：用户可见变更。
 
