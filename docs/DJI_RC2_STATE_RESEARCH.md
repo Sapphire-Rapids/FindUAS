@@ -1,10 +1,11 @@
 # DJI RC 2 / DJI Fly state research
 
 This note records independently recovered, read-only implementation details relevant to answering
-two questions:
+three questions:
 
 1. How does DJI Fly decide that Remote ID is working normally?
 2. How does DJI Fly decide that a DJI account is correctly logged in?
+3. How do configured height/distance values differ from the runtime 30/50 m account restriction?
 
 It is research context, not a FindUAS product feature. FindUAS connects to the external BLE
 receiver and reports what that receiver receives; it does not log in to DJI, control an aircraft,
@@ -54,8 +55,8 @@ int32 LE failReason
 ```
 
 Both failure fields must be retained. DJI Fly's FlyModel wrapper exposes the final `failReason`,
-but the official MSDK 5.18.0 US industrial strategy reads the misspelled `failResion`. Treating the
-first value as disposable loses information used by another official DJI path.
+but the MSDK 5.18.0 artifact's retained US industrial strategy reads the misspelled `failResion`.
+Treating the first value as disposable loses information preserved by another official DJI path.
 
 ### Public MSDK working states
 
@@ -72,7 +73,9 @@ first value as disposable loses information used by another official DJI path.
 Only `WORKING` explicitly claims that broadcasting is active. It is still a software/aircraft
 self-report rather than an independent RF observation.
 
-For the MSDK US industrial strategy, the raw mapping is:
+The MSDK 5.18.0 aircraft-provided artifact retains the following US industrial mapping after a
+leading stub return. It is strong structural evidence, not proof that this exact artifact executes
+the unreachable body at runtime:
 
 ```text
 !isRidSupport                                  → NOT_SUPPORTED
@@ -93,10 +96,11 @@ The US consumer strategy instead maps Device Health information codes:
 | `0x1B080001`, `0x161000B4` | `OPERATOR_LOCATION_LOST_ERROR` |
 | `0x161000B5`, `0x1B080002` | `FIRMWARE_ERROR` |
 
-The common delegate reports `IDLE` when the flight controller is disconnected and
-`NO_BROADCAST` when the applicable RID unlock/license state is open. European and Japanese
-strategies additionally derive `WORKING` from imported Operator or UA registration data. There is
-therefore no single failure-code table shared by every region and product family.
+The same retained implementation would report `IDLE` when the flight controller is disconnected
+and `NO_BROADCAST` when the applicable RID unlock/license state is open. Retained European and
+Japanese strategies additionally derive `WORKING` from imported Operator or UA registration data.
+These structures still demonstrate that DJI has multiple region/product interpretations, but their
+exact runtime use requires a matching non-stub runtime build.
 
 ### DJI Fly diagnostics
 
@@ -134,8 +138,10 @@ do exist have narrower scopes:
 | `setUASRemoteIDAreaStrategy()` | selects the MSDK regional delegate and feature interpretation | retained 5.18.0 logic checks the real area and rejects mismatches, with extra China restrictions |
 | internal Japanese registration SN mock | substitutes the SN sent to the Japanese registration web page in develop builds | does not write working status, PFST, or broadcast state |
 | French `EIDSwitch` | enables/disables the French EID standard on supported products | not the common FAA/EU/China/Japan RID broadcast control |
-| FlySafe `RID_UNLOCK` license | authorized European or China RID exception | requires a matching, enabled managed license and produces `NO_BROADCAST` |
+| FlySafe `RID_UNLOCK` license | authorized European or China RID exception | retained delegate requires a matching, enabled managed license and would produce `NO_BROADCAST` |
 | RID cloud-control V2 | selects region/product data and sends it to the flight controller | no direct working-state or broadcast override was found |
+| EU C0 coexistence policy | enables the C0 RID mode only for cloud-selected countries and C0 aircraft | automatic regulatory policy, not a user/debug override |
+| RID broadcast-effect policy | writes a product-specific signal bitmap/quality value | tunes broadcast behavior; bit semantics are not yet recovered |
 
 DJI documents the area-strategy setter as useful during development. Static analysis of the
 official 5.18.0 provided artifact shows that the retained implementation maps the strategy to an
@@ -149,13 +155,28 @@ application is in its internal/develop state. No link to `KeyRidWorkingStatusPus
 PFST, or over-the-air transmission was found.
 
 The official FlySafe model includes `RID_UNLOCK`; current code recognizes European and China
-types. The default UAS delegate accepts only an enabled license matching the current area strategy,
-then reports broadcasting disabled and state `NO_BROADCAST`. This is a managed authorization
-mechanism, not a locally generated debug toggle.
+types. The retained default-delegate body, located after a leading stub return, accepts only an
+enabled license matching the current area strategy and would then report broadcasting disabled and
+state `NO_BROADCAST`. This is strong structural evidence for a managed authorization mechanism,
+not proof that the provided stubbed artifact executes the branch or that it is a locally generated
+debug toggle.
 
-`IsEuCeEnableC0Rid` is a get/set, non-listening FC key, but it has no recovered UI or business
-caller. It remains an EU C0 compliance candidate until its native mapping and product conditions
-are recovered; the name alone is insufficient to classify it as a debug switch.
+`IsEuCeEnableC0Rid` does have a recovered business caller. `UAVC0EuRidCloudControlLogic` reads the
+`EU_BUCKET_COEXIST_C0_RID` cloud namespace, checks whether the current area is in its
+`country_list`, and combines that result with the aircraft's CE class being C0 before writing the
+key through `EuCeCertificationModel`. This is an automatic EU C0 coexistence policy, not a generic
+RID debug switch. Its native DUML mapping remains unrecovered, so it must not be probe-written.
+
+A second business path, `UAVRidBroadcastEffectCloudControlLogic`, reads
+`RID_BROADCAST_EFFECT_ICLOUD_CONTROL`, selects product-specific `u8_type_bitmap` and
+`u8_signal_quality` values, and writes an encoded value to `CccBroadcastSignalQuality`. Negative
+bitmaps become zero; non-negative values retain their low four bits. Signal quality is retained
+only in the inclusive 0--18 range and otherwise becomes zero. The final value is
+`(bitmap << 8) | quality`. This proves that some RF-effect parameters are cloud/product controlled.
+The bitmap meanings are still unknown, and no evidence connects this key to a local force-working
+or disable-RID toggle. Generated lifecycle and injection classes register this and the other RID
+background logics on aircraft connect/disconnect, so these are active business paths rather than
+unused definitions.
 
 ## DJI account: what “correctly logged in” means
 
@@ -197,13 +218,17 @@ KeyAppFlag = UAV_APP
 KeyFCUUIDSetting = MemberInfo.mUid
 ```
 
-The same UID is also sent to Beacon and GLS paths. An empty UID suppresses the FC write. A failed
-FC write retries once per second with an effectively unbounded retry count; success and failure
-are logged, but are not connected to the top-bar not-logged-in diagnostic.
+The app-identity write occurs whenever the flight controller connects and does not depend on login
+state. The UUID write does depend on a non-empty account UID. The same UID is also sent to Beacon
+and GLS paths. An empty UID suppresses the FC UUID write. A failed FC write retries once per second
+with an effectively unbounded retry count; success and failure are logged, but are not connected to
+the top-bar not-logged-in diagnostic.
 
 Although `KeyFCUUIDSetting` is declared get/set/listen capable, the recovered normal DJI Fly path
 does not read it back and compare it with the current account UID after a successful set. The exact
-native/DUML mapping and aircraft-firmware acceptance predicate remain unverified.
+write-key mapping and aircraft-firmware acceptance predicate remain unverified. A separate legacy
+read-only status command has now been verified on the connected flight controller, as described
+below.
 
 Additional read-only keys expose more of the aircraft-side state:
 
@@ -214,8 +239,11 @@ Additional read-only keys expose more of the aircraft-side state:
 | `FCWhiteListUnlimitEnable` | get/listen | FlySafe/GEO whitelist state, not the account-limit path |
 
 The legacy midware parser places the read paths under FLYC `Detection` (`0xDA`) as `GetUUID=8`,
-`GetIsSetUUID=9`, and `GetAllUUID=11`. These are candidates for a privacy-preserving read-only
-verification step; no real UID was queried or stored during this work.
+`GetIsSetUUID=9`, `GetAllUUID=11`, and `GetUAVAppFlag=12`. The two boolean subcommands have now been
+verified read-only through both the RC 2 bridge and the aircraft's direct USB interface. The
+privacy-sensitive `GetUUID` and `GetAllUUID` commands were deliberately not sent, and no real UID
+was queried or stored. Static material does not yet prove that legacy subcommand 12 and the modern
+KeyValue `KeyAppFlag` share the same backing state.
 
 The `IsFakeUuidSupport` key is also get/listen only. DJI Fly injects the fixed compatibility UUID
 only when the connected aircraft reports that capability. No local preference, developer screen,
@@ -260,20 +288,117 @@ consumes a UUID. The exact aircraft-firmware predicate has not yet been recovere
 | --- | --- | --- |
 | Local session | non-empty token, `isLogin == true`, non-empty UID | DJI Fly has a usable local identity |
 | Online account | most recent `validate_token` returned `code == 0`, expiry not passed | DJI server recently accepted the token |
-| Flight system | UID set succeeded; preferably read back and equals the local UID | aircraft received the current account identity |
+| Flight system | for current-account sync, compare the FC UUID with the current UID in memory and require equality | aircraft holds the identity of the current account |
 
 “Account correctly logged in” should be reported only when all applicable layers pass. The current
-DJI Fly `3000003` warning covers only the first layer.
+DJI Fly `3000003` warning covers only the first layer. `FCHasWrittenUUID == true` alone may be a
+historical UUID and proves only that the FC holds some identity, not that it matches the current
+account.
+
+## 2026-08-27 dual-path read-only hardware validation
+
+### Two independently visible DJI USB devices
+
+The Mac simultaneously enumerated the RC 2 and the connected aircraft as separate DJI USB
+devices. Sensitive product strings, aircraft identifiers, serial numbers, and coordinates were
+excluded from every capture and from this repository.
+
+The RC 2 (`2ca3:1021`, `KATMAI-IDP`) exposes:
+
+- interface 0: vendor DUML bulk, OUT `0x01`, IN `0x81`;
+- interface 1: MTP/PTP;
+- interface 2: an ADB-capable interface that currently remains `offline`.
+
+The aircraft (`2ca3:0020`) exposes RNDIS, mass-storage, and several vendor bulk interfaces. Passive
+traffic and matching query replies verify interface 4, OUT `0x04` / IN `0x85`, as a direct FC DUML
+path on this aircraft. This is stronger evidence than descriptor naming alone.
+
+### RC bridge addressing and aircraft link
+
+In DUML, `APP` is device type `0x02`; device type `0x0A` is `PC`. On the current RC 2 firmware and
+IF0 USB bridge instance, inbound flight-controller pushes use PC instance 5 (`0xAA`) as their
+receiver. An outbound FC query sourced from plain PC `0x0A` did not receive a bridged reply, while
+using `0xAA` as its source produced a matching FLYC reply. This is a hardware observation for the
+current bridge instance, not a universal RC 2 addressing rule. Direct aircraft-interface queries
+use PC address `0x0A`.
+
+A 15-second passive RC 2 capture contained 32 FLYC `GetPushCommon` frames (`0x03/0x43`) in addition
+to the RC heartbeats. The aircraft interface independently carried the same `0x03/0x43` family.
+This proves that the aircraft-to-RC flight-controller link and both read paths were present during
+the current test; the earlier no-reply result was an addressing error, not evidence that the link
+or parameters were absent.
+
+### UUID/app state: identical replies on both paths
+
+Only two allow-listed `FLYC Detection` (`0x03/0xDA`) status subcommands were sent. The reply layout
+is `[subcommand, ccode, flag]`:
+
+| Read-only query | RC 2 bridge | Direct aircraft | Interpretation |
+| --- | --- | --- | --- |
+| `GetIsSetUUID=9` | `ccode=0`, `flag=0` | `ccode=0`, `flag=0` | `has_uuid=false` |
+| legacy `GetUAVAppFlag=12` | `ccode=0`, `flag=0` | `ccode=0`, `flag=0` | legacy flag reports false |
+
+These are flight-controller reports, independently confirmed over two transports. They do **not**
+by themselves prove that the RC 2's local account is logged out or that its server token is
+invalid. They do prove that this FC currently reports no written UUID and that legacy subcommand 12
+reports false, with neither result being a bridge-routing artifact. The apparent tension with DJI
+Fly's modern `KeyAppFlag` write-on-connect path remains unresolved: the legacy flag may use a
+different backing state, or the modern write may not have executed, persisted, or applied on this
+firmware.
+
+### Configured limits are not the effective 30/50 m layer
+
+Read-only hash queries also returned the same values over both transports:
+
+| Setting | Hash | Current | FC metadata |
+| --- | ---: | ---: | --- |
+| height limit | `0x0371238A` | 500 m | unsigned 16-bit; min 20, max 500, default 120 |
+| distance limit | `0x425C0A94` | 5000 m | unsigned 16-bit; min 15, max 8000, default 5000 |
+| distance-limit enabled | `0x7ECE6D19` | false | boolean; min 0, max 1, default 0 |
+
+All replies had return code zero. These normal configuration values coexist with `has_uuid=false`
+and a false legacy app flag. Therefore, **if** a 30 m / 50 m cap is active in this state, it is not
+expressed by these three values and must be a separate runtime/effective-limit/reason-status layer.
+This observation does not prove that the cap was active during the test.
+
+The decompiled long form of `DataOsdGetPushHome` (`0x03/0x44`) exposes a direct test:
+
+- `payload[0x24] & 0x1f` is `HeightLimitStatus`; value `10` is `LIMIT_BY_REALNAME`;
+- little-endian float32 at `payload[0x25..0x28]` is the effective height limit;
+- state bits at `payload[0x14]` report height-limit and distance-limit reached;
+- the separate `DistanceLimitedReason` key defines `REAL_NAME_LIMIT=2`.
+
+Bounded passive windows while the aircraft was not flying contained `0x03/0x43` but no long
+`0x03/0x44`, so this run neither proves nor disproves an effective 30/50 m cap. No motors were
+started and no setting was changed.
+
+### RID status remains a subscription/RF validation problem
+
+`KeyRidWorkingStatusPush` is get/listen-only and can be resolved at the Java/native API boundary to
+the complete key tuple `(product=0, component=4, index=0, subcomponent=65534,
+subindex=65534, identifier="RidWorkingStatusPush")`. The identifier-to-DUML command table lives in
+the unavailable matching `libsdk_jni.so`. It is therefore not safe to invent a raw command ID. Its
+absence from a passive IF4 window is not evidence that RID is unsupported: the stream may start
+only after `UAVKeyManager.listen(...)` establishes a subscription.
+
+The safest onboard check is an official-runtime read-only listener for
+`KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus
+HMS 30331--30334. Even `WORKING` or `isRidNormal=true` is only aircraft self-report; a simultaneous
+independent receiver capture after user-initiated motor start remains necessary to prove RF
+broadcast. A normal macOS Bluetooth device list is not sufficient for this check because broadcast
+Remote ID need not appear as an ordinary connectable BLE peripheral.
 
 ## Remaining read-only work
 
-1. Recover the native/DUML mapping for `KeyEIDSwitch`, `IsEuCeEnableC0Rid`, and aircraft binding.
-2. Determine whether `FCHasWrittenUUID` and the read-only FC UUID getters are usable on the RC 2
-   path, using redacted comparison and never persisting a raw UID.
-3. Recover the RC 2 GNSS-to-RID operator-location injection path and validate the candidate native
-   command without changing state.
-4. Compare a redacted DJI Fly RID state push with a simultaneous independent receiver capture.
-5. Keep product/region strategies separate when interpreting the two failure fields.
+1. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
+   the effective limit, without starting motors on the user's behalf.
+2. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush`, retaining both
+   failure fields and the accompanying HMS 30331--30334 state.
+3. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
+   the user initiates motor start.
+4. Recover the native/DUML mapping for `KeyEIDSwitch`, `IsEuCeEnableC0Rid`, RID working-status
+   subscription, and aircraft binding without probe-writing any key.
+5. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 
 ## Primary sources
 
