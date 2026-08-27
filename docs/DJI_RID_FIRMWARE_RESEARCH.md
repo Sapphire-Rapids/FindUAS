@@ -165,6 +165,16 @@ enables either parameter. Status `0x03` may represent absence, a runtime/product
 refusal; its exact public enum name remains unresolved and is not guessed. Neither candidate is
 eligible for F8 or F9 on this hardware.
 
+The separate `dji_fly_rid_cloud_control_v2` application path also does not expose a Boolean RID
+control. Its recovered app-side selector compares WA150 as `ProductType` value 139, chooses an
+area-specific or `DEFAULT` opaque hex blob, and writes `CloudControlData(18,4,blob)` through a
+set-only key. A `block_device` match selects `DEFAULT`; it is not an off command. Current
+`libsdk_jni.so` closes the generic native path as hex decode -> cloud-control command `0xDD` ->
+receiver type/index -> set pack, but provides no payload schema, readback, RID-state correlation,
+or WA150-specific acceptance proof. That transport is therefore not a substitute for decrypting
+and understanding `0802`, and an opaque cloud blob must not be guessed, replayed, or embedded in
+this repository.
+
 ### Public implementation cross-check
 
 Independent community material supports the command-family interpretation, but its F8 description
@@ -460,6 +470,27 @@ cribs are lower-value than obtaining a lawful verified plaintext/readback, a STU
 output passes `plain_cksum`, a read-only installed-runtime observation, or a vendor-trusted
 development loading/signing path with recovery.
 
+## 2026 public-breakthrough recheck
+
+A fresh audit of the pinned upstream, its current issues/PRs, 510 enumerable public forks, and the
+adjacent `dji-neo2-tools` implementation found no reproducible WA150 `0802` decryption, matching
+PRAK verification key, DJI production signing key, device-key export, Sparrow2 unsigned runtime
+patch, installed-image readback, or independent safe recovery chain. The public IMaH parser's
+384-byte/3072-bit RSA-PSS support is format support; it does not supply the target key material.
+
+Two August 2026 advisories list Mini 5 Pro firmware through `01.00.0600` for BLE/DUML or internal
+Wi-Fi weaknesses. Both explicitly lack known source code, do not list `01.00.0700`, and provide no
+filesystem readback, native execution, TEE/RPMB key export, loader acceptance, signing bypass, or
+recovery evidence. They are reasons to watch for a future auditable read-only research release,
+not reasons to downgrade or flash.
+
+One active fork added a FlyC `0xDA` “Remote ID/Privacy Control” dissector derived from the older
+`CIAJeepDoors` AeroScope/DroneID privacy-bit experiment. The original project warns that this does
+not fully stop broadcast, may still leak valid positions, can be reset by app/firmware behavior,
+and is not universal. No cited implementation verifies it on WA150 or maps it to modern
+FAA/ASTM/EU standard RID. It remains historical protocol context, not a Mini 5 Pro switch or a
+firmware trust-boundary breakthrough.
+
 ## Modern FlySafe license query and enable paths
 
 The official MSDK 5.18 implementation has now been followed from its public/JNI entry through the
@@ -518,9 +549,21 @@ maps value 3 back to unknown. The whitelist callback treats a modern first byte 
 supported unless it is `0xff`; the older long form uses byte 3, while a short old form leaves the
 cache unchanged.
 
-The query manager refuses to send when support is false or the version remains unknown. For the
-current Mini 5 Pro product mapping (product 139), versions 0/1 use receiver `0x03` and version 2
-uses receiver `0xb1`; product 139 is not in the recovered special `0x92` override list. A strict
+The complete `Device::Setup -> RegisterDevicePush -> PackProviderImpl -> SDK/Core SessionMgr`
+path only installs local observers. It sends no subscribe/GET packet and does not replay an older
+cached push to a newly registered observer. The two `Subscribe*` methods only increment local
+listener IDs, while `QueryLicenseUnlockVersion` reads the already populated cache. No current
+official or pinned public call site proves an active trigger for these three pushes, so their
+command IDs must not be guessed into requests.
+
+The query manager refuses to send when support is false or the version remains unknown. The
+version-specific sessions initially choose receiver `0x03` for versions 0/1 and `0xb1` for version
+2. `PackManager::SendPack` then applies a product tree override. Runtime product `139` is absent
+from that 21-item tree, and the not-found branch changes the final receiver to **`0x92` for all
+three versions**, including overriding V4's initial `0xb1`. This corrects the earlier reading that
+only products found in a special subset were overridden. The conclusion remains conditional on
+the runtime FlySafe product actually being 139; it is not permission to hand-build or scan routes.
+A strict
 20-second passive listener therefore watched both the direct-aircraft and RC 2 USB receive streams
 without writing anything. It validated 122 aircraft frames and 81 RC 2 frames but observed none of
 the area or whitelist pushes. That leaves support, version, and receiver unknown for this session;
@@ -596,11 +639,13 @@ and the aircraft should not be written.
    F7 status on live direct/RC routes while known positive controls succeeded. Never escalate to F9
    by guessing a value type.
 7. The modern query and set-enable schemas are now statically closed. The next dynamic step, if
-   separately staged in the work tree, is read-only: use the official current runtime or an
-   equivalent observer to receive the area/version and whitelist/support pushes, select exactly the
-   resulting receiver route, and inventory only redacted type, level, enable, and validity fields.
-   Passive absence leaves both caches unknown; do not substitute false defaults or scan alternate
-   receiver addresses. Do not retry the legacy one-byte request outside a proven V2 session or feed
+   separately staged in the work tree, is read-only: use the official current runtime to register
+   its observers before the device lifecycle, then wait for the area/version and
+   whitelist/support pushes. There is no proven active trigger and no registration-time replay.
+   Only after both gates and runtime product 139 are observed may the official query path select
+   its version session and final receiver `0x92`, returning only redacted type, level, enable, and
+   validity fields. Passive absence leaves both caches unknown; do not substitute false defaults,
+   scan receiver addresses, retry the legacy one-byte request outside a proven V2 session, or feed
    V3/V4 group bytes to the legacy parser.
 8. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
    control in FindUAS.
@@ -645,8 +690,14 @@ and the aircraft should not be written.
 - [`dji-firmware-tools` F7/F8/F9 dissector](https://github.com/o-gs/dji-firmware-tools/blob/195692263c2684cf1ddc4995f2736be6c0fb135e/comm_dissector/wireshark/dji-dumlv1-flyc.lua)
 - [`dji-firmware-tools` RC331 FLYA issue #467](https://github.com/o-gs/dji-firmware-tools/issues/467)
 - [`dji-firmware-tools` 3072-bit IMaH support](https://github.com/o-gs/dji-firmware-tools/commit/739da082c08418d74195dcd4002322bff08014a1)
+- [Mini 5 Pro BLE/DUML advisory CVE-2026-78306](https://github.com/advisories/ghsa-vq46-xr65-w8q7)
+- [Mini 5 Pro BLE credential advisory CVE-2026-77812](https://github.com/advisories/GHSA-gh7r-589j-33x7)
+- [Pinned `0xDA` dissector commit](https://github.com/Auster/dji-firmware-tools/commit/d0b6023bf4317fcc2b7d57d3999b3841d98e5492)
+- [Pinned older `CIAJeepDoors` privacy-bit experiment](https://github.com/MAVProxyUser/CIAJeepDoors/tree/baedd24600cecd100d8d66f8350cae336f799dbf)
 - [Unicore UC6580 product page](https://en.unicore.com/products/dual-band-gps-chip-uc6580/)
 - [Independent exact `rc331/0205` corroboration](https://github.com/danusha2345/SkylabFCCfree/commit/51ef14244cbd2e9346db67fd9dd15e08e30750e8)
+- [Pinned RC 2 `40007` DUML stream map](https://github.com/danusha2345/SkylabFCCfree/blob/aa024985bf1556ab9c3b12f3d0f2305f63b021f5/docs/DUML_STREAM_MAP.md)
+- [Pinned legacy RID cloud-control selector body](https://github.com/MAVProxyUser/SKYROVER_src/blob/8186e19241c913318b140bf37c5eafba005f1e7c/com/uav/component/bglogic/UAVRidCloudControlLogic.java)
 - [DJI-Link 1.21.4 parameter wire analysis](https://github.com/Kolya080808/DJI-Link/blob/13b357f405149674a33e3285780885728f52cafe/dji_link_beta/reverse_docs/PARAM_WIRE.md)
 - [DJI-Link 1.21.4 Remote ID telemetry table](https://github.com/Kolya080808/DJI-Link/blob/13b357f405149674a33e3285780885728f52cafe/dji_link_beta/reverse_docs/TELEMETRY_TABLE.txt)
 - [DJI-Link 1.21.4 RTH/F8 runtime notes](https://github.com/Kolya080808/DJI-Link/blob/13b357f405149674a33e3285780885728f52cafe/dji_link_beta/reverse_docs/RTH_ALTITUDE_RESEARCH_2026.md)

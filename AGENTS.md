@@ -151,6 +151,36 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     The five local STUE samples all have unique wrapped values. Do not repeat cross-version XOR,
     crib, or offset scans as though they were a plaintext route unless new evidence first shows
     identical content key/counter reuse.
+28. The complete current FlySafe observer path only installs local `0x03/0x09`, `0x03/0x42`, and
+    `0x03/0xce` callbacks. It sends no subscribe/GET and replays no older push. Do not invent an
+    active trigger. If runtime product is confirmed as 139 and both official gates are populated,
+    `PackManager` overrides the final inventory-query receiver to `0x92` for versions 0, 1, and 2;
+    do not hand-route or scan receivers.
+29. A pinned historical RC 2 `40007` corpus contains two strict CRC-valid `0x11/0x1C` frames.
+    Prefer one long-lived, zero-write localhost observer over Root or repeated raw captures. Filter
+    to the exact seven-byte RID payload on-device and export only de-identified status fields.
+    Never expose raw `40007` telemetry, and never parse the distinct `8902` stream as DUML.
+30. The anonymous bounded cloud probe found `rid_broadcast_effect_icloud_control` present with only
+    product keys 158/159 and zero effect values; product 139 was absent. Missing is not zero, and a
+    conditional cloud response is not a stable RID switch or permission to synthesize/write
+    `CloudControlData`.
+31. `dji_fly_rid_cloud_control_v2` selects an area row or `DEFAULT` opaque hex blob using
+    `ProductType.value()`; WA150 is 139, and a `block_device` hit means fallback, not RID off.
+    Current native code hex-decodes it and uses generic cloud-control command `0xDD` with receiver
+    type/index. The key is set-only and has no proven schema, readback, WA150 sample, or RID/RF
+    effect. Never guess, replay, persist, or expose that blob as a switch.
+32. The 2026 public recheck found no WA150 decrypt/re-sign/readback/recovery breakthrough. The two
+    Mini 5 Pro BLE advisories stop at firmware `01.00.0600` and publish no source/PoC or firmware
+    trust-chain primitive; do not downgrade for them. The forked FlyC `0xDA` dissector derives from
+    an older AeroScope privacy-bit experiment that is incomplete, resettable, and unverified on
+    WA150 standard RID. It is not a control candidate.
+33. A research-only Android prototype now wraps the rootless `40007` observer in an explicit
+    default-off Info-page Start/Stop flow. It uses one foreground-service-owned session, no
+    persistence, no boot/sticky/Auto-FCC auto-start, no output stream, and no reconnect; Stop and
+    service teardown close the socket and join the worker. Its 23 targeted tests and debug build
+    pass, but it has not been installed or hardware-validated. Keep that third-party clone and APK
+    out of this MIT repository; preserve the same lifecycle and privacy constraints in any clean
+    reimplementation.
 
 ## Concurrency and state ownership
 

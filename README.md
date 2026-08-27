@@ -131,6 +131,26 @@ RID policy 参数名，在这台 Mini 5 Pro 上均未返回可用的 F7 参数�
 基线；两路都未观察到该 push。这个基线不能证明“不支持”，因为状态可能需要官方订阅或状态变化，
 且用户确认该机型只有起桨后才开始实际播发 RID。外部监测设备当时离线，所以没有空口结论。
 
+后续历史语料复核找到了更好的无 Root 观察面：RC 2 本机 `40007` broker 的一组真实、严格 CRC
+通过的旧实机数据里出现过 2 帧 `0x11/0x1C`，并同时包含 FlySafe 的 `0x03/0x09` 与 `0x03/0x42`
+push。因此下一步是在 RC 2 上做单连接、长时间、完全只读且
+先去敏再输出的 RID 状态监听器，而不是先 Root 或反复短连抓全量遥测。该证据来自另一机型，仍需在
+Mini 5 Pro 起桨实验中与独立接收器同步复核。
+
+这个观察器的 research-only Android 原型现已完成：默认关闭，只能在 Info 页手动 Start/Stop；由
+前台服务维持一次只读连接，切回 DJI Fly 后仍可运行；端口忙、断流或失败即停止，不自动重连，也不
+取得 socket 输出流。23 项定向 JVM 测试和 debug APK 构建均通过，但尚未安装或接触实机。原型位于
+独立的第三方研究 clone，源码和 APK 都不会并入本 MIT 仓库；当前结论仍只是“观察面已实现”，不是
+“Mini 5 Pro 已动态验证”，更不是 RID 开关。
+
+`rid_broadcast_effect_icloud_control` 也完成了一次匿名最小云查询：命名空间存在，但当前返回只包含
+产品 158/159 的全零广播效果配置，产品 139/WA150 不在响应中。这进一步排除了把该字段直接当成
+Mini 5 Pro 总开关的做法，但不能排除账号、国家或灰度条件下出现不同配置。
+
+另一个 `dji_fly_rid_cloud_control_v2` 名字同样不是现成开关：它按地区与 ProductType 139 选择
+不透明 hex 策略，并经通用 `0xDD` 云控通道写入；`block_device` 命中只回退到 `DEFAULT` 策略。
+该 key 只写不可回读，当前也没有 WA150 payload 样本、内部 schema 或与 RID 空口效果的对应关系。
+
 当前最有希望的稳定开关路线不是这两个参数，而是 DJI 官方定义的 FlySafe `RID_UNLOCK` 签名许可。
 官方资料把它列为许可证类型 6，等级 1/2 分别对应欧盟/中国，并要求经过 DJI 账号下载、飞控序列号
 匹配、推送/拉取和许可启停。当前 MSDK 5.18 的原生查询与启停传输已经完成静态闭合，但还没有在
@@ -152,6 +172,11 @@ payload SHA-256 与 `encr_cksum` 可以重算到一致，但 `plain_cksum` 无�
 值不同，约 679.3 MB 公共范围内没有相同的对齐 16/32 字节块，XOR 统计符合独立高熵数据。
 因此不能靠“旧版密文 XOR 新版密文”恢复 RID 代码或配置。
 
+2026-08-27 又复核了当前公开上游、可枚举 forks 与新披露资料，仍没有 WA150 `0802` 的可复现
+解密、生产重签、设备 key 导出或安全刷回路径。两条 Mini 5 Pro 新 CVE 只列到 `01.00.0600`，且
+没有公开源码/PoC 或明文回读证据；新出现的 `0xDA Remote ID` dissector 则源自旧 AeroScope 隐私位，
+不能彻底停播、可能被重置，也没有 WA150 标准 RID 验证。因此不会为追逐这些线索降级或刷写。
+
 首次实机核验发现，旧式一字节 `0x11/0x11` 许可证清单请求在飞机直连和 RC 2 转发两路都超时；紧接着的
 阳性对照仍能分别读回 FC area=`CN` 与 Sky/Ground=`CN`。这说明设备与 USB 路由在线，但只证明那组
 手写事务在当时没有收到匹配响应，不能据此声称“清单为空”或“设备不支持 V2”。现代实现复用相同
@@ -165,6 +190,11 @@ result byte、protobuf/status parser 和启停结果解析也已恢复。DJI Fly
 同步/查询/启停子系统被打包，尚无当前飞机的 type-6 专用 UI、服务器 entitlement 或空口效果证据；
 可反编译的 1.21.4 界面只识别 type 0–4，会把 type 6 当作未知项。因此当前仍没有可安全交付的实机
 RID 开关。
+
+DJI Fly 1.21.10 的 FlySafe observer 链也已完整复核：它只在本地登记 area/whitelist/database push，
+不发送订阅或 GET，也不会在新 listener 注册后重放历史帧。若 runtime product 确为 139，正式许可查询
+最终由官方 `PackManager` 把 receiver 选为 `0x92`，三种已知版本都一样；在 support/version push 未
+真实出现前，不能手写请求、猜版本或轮询 receiver。
 
 要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
 [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、

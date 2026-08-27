@@ -283,14 +283,18 @@ pushes. The recovered current behavior is:
 | --- | --- |
 | area push `0x03/0x09` | top two bits of the little-endian version field select V2/V3/V4 generation 0/1/2; value 3 remains unknown |
 | whitelist push `0x03/0x42` | modern first byte 10+ is supported unless `0xff`; the older long layout reads byte 3; a short old layout leaves state unchanged |
-| product 139 with version 0/1 | receiver `0x03` |
-| product 139 with version 2 | receiver `0xb1` |
+| product 139 with version 0/1/2 | version sessions initially choose `0x03`/`0xb1`, then the product-tree not-found branch overrides the final receiver to `0x92` |
 
 The query manager returns before transmission when support is false or version is still unknown.
+A complete registration-chain audit shows that `Setup`, `RegisterDevicePush`, the actual provider,
+and `SessionMgr` only install local callbacks: they send no subscribe/GET packet and replay no
+historical push. The `Subscribe*` names are local listener-ID counters, and the public query getter
+only reads the cache. No safe active trigger has been recovered, so these command IDs must not be
+converted into guessed requests.
 A strict 20-second passive dual listener validated 122 direct-aircraft frames and 81 RC 2 frames,
 but saw neither target push. No USB writes were made. This leaves both caches and the receiver route
 unknown; it does not mean the aircraft reported `unsupported`, because these are registered
-current-session pushes and may require the official runtime subscription or a state transition.
+current-session pushes and may require an official lifecycle or a state transition.
 
 The DJI Fly UI/account evidence must also stay versioned. The protected official 1.21.10 artifact
 retains generic account-license/aircraft-license UI and JNI symbol names, but currently provides no
@@ -334,6 +338,33 @@ unused definitions. The same current official native library pairs this Key with
 name `ccc_broadcast_signal_quality_0`, hash `0xD7757AD2`, and IntMsg get/set config handlers.
 `IntMsg` likewise does not establish the wire width. The mapping is closed for this native build,
 but it does not reveal the bitmap semantics or promote the field to an enable switch.
+
+A bounded anonymous read-only request to DJI Fly's current cloud-control endpoint requested only
+this namespace, used a synthetic installation UUID, and sent no account token or aircraft serial.
+The server returned a successful response with two configuration entries, keyed by products 158
+and 159; both had zero bitmap and zero quality. Product 139/WA150 was absent. The probe strictly
+distinguishes a missing product from a zero value and retained no raw response. This is a useful
+current negative result for Mini 5 Pro, not a universal exclusion: account cohorts, rollout,
+country, firmware, and installation identity may change a conditional cloud response. It also
+does not authorize a client-side cloud-data writer.
+
+The older-named `dji_fly_rid_cloud_control_v2` namespace is a different path again. Its recovered
+schema is `country_and_device_type` containing rows with `country_code`, opaque hex `data`, and a
+`block_device` list. The current product input is exactly `ProductType.value()`; therefore
+WA150/UAV139 is compared as numeric 139. A match in an area's `block_device` list does **not**
+disable RID or skip the operation: it selects the `DEFAULT` row's opaque data. Only a missing or
+empty default results in no write. The selected non-empty value is wrapped as
+`CloudControlData(18,4,data)` and sent through the set-only `KeyCloudControlData` surface.
+
+Current 1.21.10 native analysis closes that generic writer further: it dynamic-casts the value,
+hex-decodes `data`, builds generic cloud-control command `0xDD` with the supplied receiver
+type/index, and sends the set pack. The same handler is referenced by product,
+flight-restriction, and battery-authentication abstractions, so neither command `0xDD` nor tuple
+`(18,4)` identifies an RID switch by itself. There is no GET/listen readback, no recovered payload
+schema or signature rule, no live WA150 area/default sample, and no mapping from its ACK to
+`RidWorkingStatusPush` or over-the-air broadcast. Cloud, area, ProductType, and reconnection can
+all select or replay a value. This is a high-confidence product/region policy selector plus opaque
+transport hook, not a stable on/off control.
 
 ## DJI account: what “correctly logged in” means
 
@@ -642,6 +673,30 @@ contained a `0x11/0x1C` candidate. No raw payload, UAS ID, location, or serial w
 a valid quiet baseline, not a negative capability result; the external detector was offline and
 the user reports that this aircraft begins actual RID transmission only after motor start.
 
+The RC 2 localhost broker is a stronger no-root observation surface than those USB receive
+windows. A pinned historical RC 2/Avata capture from `127.0.0.1:40007` contains 759 strict
+CRC-valid inner DUML frames, including two `0x11/0x1C`, twelve `0x03/0x09`, and four
+`0x03/0x42` frames. This proves that a normal RC 2 app can receive `RidWorkingStatusPush` and the
+two FlySafe support/version cache inputs from that broker on at least one real product/session. It
+does not yet prove the current Mini 5 Pro forwards the same pushes. The appropriate next implementation
+is one long-lived, read-only `40007` client that parses both the outer envelope and direct DUML,
+filters on-device to the exact seven-byte RID status, and exports no raw frames, coordinates,
+identity, or serial data. Repeated short captures are unsuitable because they can miss low-rate
+pushes and existing tests show that reconnect churn can disrupt the aircraft/controller link.
+Port `40009` is a secondary direct-DUML observation path; `8902` is a different length-delimited
+stream and must not be fed to the DUML parser.
+
+A research-only implementation now closes the application lifecycle around that observer. Its
+Info-page control is explicitly manual and defaults to OFF; an existing foreground service owns
+at most one session so observation can continue while DJI Fly is visible. Boot/package startup,
+null sticky intents, and Auto-FCC actions cannot start it. Stop and service teardown close the
+active socket and join the worker; port busy, EOF, connection failure, cooperative yield, and
+internal failure are terminal and do not create a replacement connection. The UI receives only
+typed de-identified RID/EID flags, area/failure numbers, FlySafe version/support/encoding, and a
+timestamp. Targeted policy/protocol tests passed 23/23 and the debug package assembled, but it was
+not installed or run on hardware. Because the prototype lives in a third-party research clone,
+neither its source nor its APK belongs in this repository.
+
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus
 HMS 30331--30334. Even `WORKING` or `isRidNormal=true` is only aircraft self-report; a simultaneous
@@ -655,8 +710,9 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. Obtain a legitimate current-session SDK/FlySafe inventory result or observe the official
-   runtime populating both the area/version and whitelist/support caches. Use only the resulting
+1. Obtain a legitimate current-session SDK/FlySafe inventory result or use the single long-lived
+   rootless `40007` observer to see the official runtime populate both the area/version and
+   whitelist/support caches. Use only the resulting
    V2/V3/V4 session and receiver; do not infer unsupported from passive absence, scan receiver
    addresses, guess adjacent commands, or reuse the legacy record parser for modern protobuf data.
 2. Use current official DJI Fly 1.21.10 for handler-level static mapping. Export the live
@@ -664,10 +720,11 @@ the remaining probes are read-only.
    needed. Do not repeat the exhausted public-key sweep over `0200`, and do not root or unlock it.
 3. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
-4. Use the completed strict `0x11/0x1C` parser as the reference for an official-runtime
-   subscription experiment, retaining only redacted parsed fields plus both higher-level failure
-   names and HMS 30331--30334. First capture one real Mini 5 Pro frame to confirm command type,
-   sender, receiver, and the seven-byte layout on this product.
+4. Use the completed strict `0x11/0x1C` parser in a single long-lived, zero-write RC 2 localhost
+   `40007` observer. Retain only redacted parsed fields plus both higher-level failure names and
+   HMS 30331--30334. First capture one real Mini 5 Pro frame to confirm command type, sender,
+   receiver, and the seven-byte layout on this product. Do not expose the existing raw-capture API
+   or reconnect repeatedly.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
 6. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
@@ -693,6 +750,8 @@ the remaining probes are read-only.
 - [DJI account/offline-limit support note](https://repair.dji.com/help/content?customId=en-us03400011758&pbc=mF6h4ZTt&spaceId=34)
 - [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)
 - [DJI Mobile SDK V5 sample repository](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
+- [Pinned RC 2 `40007` DUML stream map](https://github.com/danusha2345/SkylabFCCfree/blob/aa024985bf1556ab9c3b12f3d0f2305f63b021f5/docs/DUML_STREAM_MAP.md)
+- [Pinned legacy RID cloud-control selector body](https://github.com/MAVProxyUser/SKYROVER_src/blob/8186e19241c913318b140bf37c5eafba005f1e7c/com/uav/component/bglogic/UAVRidCloudControlLogic.java)
 - [AOSP Verified Boot device state](https://source.android.com/docs/security/features/verifiedboot/device-state)
 - [AOSP Verified Boot flow](https://source.android.com/docs/security/features/verifiedboot/boot-flow)
 - [Android `ApplicationInfo` public APK paths](https://developer.android.com/reference/android/content/pm/ApplicationInfo)
