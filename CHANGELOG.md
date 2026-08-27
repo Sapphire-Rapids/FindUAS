@@ -65,9 +65,11 @@ stable releases begin.
 - Rejected installation of a third-party approximately 52 MB multi-capability APK and documented
   the independent `com.finduas.ridobserver` research line. Historical v0.1-v0.4 are withdrawn and
   must not be installed or started: even an input-only `40007`/`40009` connection may replace DJI
-  Fly's single active broker fd. Their parsers/tests remain offline-only. The same-package v0.6
-  replacement has no permission, service, socket, DUML, Binder application transaction, or device
-  command; it is only a work-only environment inventory and still awaits the staged RC 2 check.
+  Fly's single active broker fd. Their parsers/tests remain offline-only. The same-package v0.7
+  replacement has no permission, service, socket, DUML, DJI protocol Binder application
+  transaction, or device command. It is a work-only environment inventory with explicit run
+  schema/timestamps and observer-view package/process/UID/path/native-library access and hash facts;
+  it still awaits the staged RC 2 check.
 - Recorded that the ADB host opens the RC 2 endpoints and sends `CNXN`, but receives neither
   `AUTH` nor `CNXN` and stays offline across two platform-tools versions and both tested host
   backends. No shell or ADB installation was used. USB parentage showed both visible storage LUNs
@@ -78,7 +80,7 @@ stable releases begin.
   RC 2 initially offered only native reformat rather than browse for that Mac-created volume.
   After RC-native storage setup, the user successfully installed the signed PackageInstaller and
   FileManager helpers plus an earlier observer build. That historical observer must remain stopped
-  and be overwritten in place by the no-permission/no-socket v0.6 environment probe; ADB remains
+  and be overwritten in place by the no-permission/no-socket v0.7 environment probe; ADB remains
   offline and was not used.
 - Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
   former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
@@ -86,10 +88,17 @@ stable releases begin.
   as `[batch_status][hash][cached-size value]...`. The UAV139/wa150 abstraction dynamically
   registers both RID-policy mappings, but the live FC still returns no metadata for either.
 - Audited N3Live at pinned revision `bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0`.
-  Target RID/FlySafe DUML accepted by the retired observer uses encryption selector 0 and is clear
-  at the RC-local broker boundary; this does not show that the O4 radio link is clear. N3Live's
-  416-command list proves extracted native template symbols and constants, not payload layout,
-  target route, product support, runtime preconditions, or safe setter semantics.
+  Corrected the evidence attribution: N3Live reads Goggles N3 USB IF4 and has no RC-local
+  `40007`/`40009`, RID decoder or encryption-selector parser. Selector-0 target admission is a
+  separate retired-observer fact at the RC-local broker and does not show that O4 is clear.
+  N3Live's 416-command list is extracted template-symbol metadata from an uncommitted input
+  library, not a call graph or proof of payload, route, product support or safe setter semantics.
+- Rebuilt the offline-only ARM64 JVMTI V0 canary with mandatory `DisposeEnvironment`. Final APK
+  SHA-256 is `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`; the earlier
+  non-disposing build is revoked. Neither V0 nor V1 has been copied, installed or attached. The
+  adjacent stock `dpad_fuli` Shell page is also withdrawn as a possible launcher because it
+  automatically probes `adb shell su`, runs `adb version`, and discards stderr/exit status; a
+  separately audited side-effect-free, result-preserving UID1000 caller is still required.
 - Closed product-139's EASA operator-registration surface: the registered
   `OperatorRegistrationNumber` string GET/SET handlers use `0x03/0x78`, with an explicit delete
   operation. This is OPID registration data, not a broadcast Boolean. A complete current Fly/MSDK

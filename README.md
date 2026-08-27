@@ -139,35 +139,39 @@ RID 状态帧以及 FlySafe `0x03/0x09`/`0x03/0x42` push，但后续静态审计
 它们的解码器和测试只保留为离线研究资产。精确 `07.00.0100` 实现仍待读取，但这种不确定性不能
 用来承担中断飞控链路的风险。
 
-当前同包覆盖更新为 `com.finduas.ridobserver` v0.6。它由隔离的 safe source set 构建，不申请任何
-权限，不含 service/receiver/provider、socket、`40007`/`40009`、DUML、`Parcel` 或 Binder 应用事务。
-用户手动点击后，它只做 `protocol` Binder 存活/描述符检查，并只读回报 DJI Fly/
-`dpad_fuli` 的版本、system/debuggable/UID/signature/ABI/组件状态、SELinux、`ro.debuggable` 与
-升级恢复标志。它不启动 DJI 组件、不写属性、不发命令，所以结果只是下一阶段的环境门禁，不是 RID
-状态或开关。当前发布工件 SHA-256 为
-`1746446e94bdb9df3c7ccb4cf1a1244fb200728827405891d61fcdc1a7941475`；它仍是 work-only 研究工具，
+当前同包覆盖更新为 `com.finduas.ridobserver` v0.7。它由隔离的 safe source set 构建，不申请任何
+权限，不含 service/receiver/provider、socket、`40007`/`40009`、DUML、`Parcel` 或 DJI 协议 Binder 应用事务。
+用户手动点击后，它只做 `protocol` Binder 存活/描述符检查，并只读回报 DJI Fly、`dpad_fuli`
+和固定 V0/V1 carrier 的 UID/进程/签名/ABI/路径、observer-view DAC/SELinux 与可读目标 `.so`
+哈希。报告含 schema、run ID、开始/完成时间和本地复制按钮；它不启动 DJI 组件、不写属性、不发
+命令，所以结果只是下一阶段的环境门禁，不是 RID 状态或开关。当前发布工件 SHA-256 为
+`16e870ac947c6af3cfcbbd24add64bea3bc6ae257a3972e2b2ceba15fed45e86`；它仍是 work-only 研究工具，
 不进入本 MIT 应用的产品能力。
 
-对 [N3Live 固定版本
+这里有两条必须分开的证据。历史 observer 自己的目标事件 decoder 只接受 DUML encryption
+selector 为 0 的帧，因此其 payload 在 RC 2 localhost broker 边界是明文；这不证明 O4 空口为
+明文。另一方面，[N3Live 固定版本
 `bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0)
-的交叉审计进一步限定了这里的“明文”含义：历史 observer 目标事件的 DUML encryption selector
-为 0，因此其 payload 在 RC 2 的 localhost broker 边界是明文；这不证明飞机与遥控器之间的 O4
-空口为明文，broker 之前仍可能已经解密或转换。N3Live 的 416-command 表来自 native template
-符号抽取，只能证明命令模板/常量存在，不能单独证明 payload、目标地址、当前产品支持或安全写法。
+读取的是 Goggles N3 USB IF4，不含 `40007`/`40009`、RID 专用 decoder 或 selector 解析；它只独立
+佐证 DUML framing/CRC。其 416-command 表来自未随仓库提供的 native library 的 template 符号
+抽取，只能证明命令名称/常量线索，不能证明 payload、目标地址、当前产品支持或安全写法。
 
 另一个 work-only 工件是 ARM64 JVMTI V0 attach canary，SHA-256 为
-`387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`。两次全新构建字节一致，
+`4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`。此前缺少
+`DisposeEnvironment` 的工件已撤销；修正版两次全新构建字节一致，
 独立审计确认 APK 无 DEX、权限、组件或 shared UID；唯一 AArch64 library 只执行
-`GetEnv(JVMTI)`、`GetVersionNumber` 和一条固定数值日志。它不枚举类、不取得 `JNIEnv`，也不含
+`GetEnv(JVMTI)`、`GetVersionNumber`、`DisposeEnvironment` 和一条固定数值日志。它不枚举类、不取得 `JNIEnv`，也不含
 socket、文件/属性、进程、Binder、DUML、GET 或 SET。该工件尚未复制、安装或 attach；必须先取得
-v0.6 的完整实机门禁，且即使 attach 成功也只证明加载/JVMTI 可达，不证明 EID/RID 支持。
+v0.7 的完整实机门禁和无副作用、保留 stderr/退出码的 caller；即使 attach 成功也只证明加载/JVMTI
+可达，不证明 EID/RID 支持。相邻 stock `dpad_fuli` Shell 页会自动尝试 `adb shell su` 并执行
+`adb version`，还会丢 stderr/退出码，因此当前不得打开或用于 attach。
 
 V1 France-EID semantic-anchor resolver 也只完成了离线实现与审计，最终 APK SHA-256 为
 `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`。它只枚举已经加载的类，
 精确计数 `electronicIDBroadcastOn` 与 `electronicIDBroadcastExisted` 两个 generated thunk，并
 确认它们是否共享一个 ClassLoader；随后清理引用、释放本次 JVMTI environment，只输出数字计数。
 它没有加载/初始化类、访问字段、调用 Java 方法、GET/LISTEN/SET、socket、Binder 或 DUML，且从未
-复制到设备、安装或 attach。V1 只证明语义锚点拓扑，必须排在 v0.6 和 V0 之后另行准入，不能证明
+复制到设备、安装或 attach。V1 只证明语义锚点拓扑，必须排在 v0.7 和 V0 之后另行准入，不能证明
 France EID 可读，更不能证明存在 FAA/global RID 开关。
 
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
@@ -175,7 +179,7 @@ platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因�
 `adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB 存储都属于飞机，而不是 RC 2；一次
 误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全卸载该卷。后来用户用 RC 2 原生处理的
 microSD 成功安装了 DJI 签名的 PackageInstaller/FileManager helpers 和较早 observer，证明了无需
-Root/ADB 的人工更新路径。下一步是用 v0.6 同包覆盖旧版并回传完整诊断页；在完成覆盖前不得点击旧版
+Root/ADB 的人工更新路径。下一步是用 v0.7 同包覆盖旧版并回传 `COMPLETE` 的完整诊断页；在完成覆盖前不得点击旧版
 Start。当前 Mac 上的 45 GB 与 256 GB 卷仍都属于飞机，不得再把 RC 2 APK 复制到这两个卷。
 
 `rid_broadcast_effect_icloud_control` 也完成了一次匿名最小云查询：命名空间存在，但当前返回只包含

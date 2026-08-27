@@ -801,16 +801,19 @@ parser.
 
 N3Live was separately audited at pinned revision
 [`bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0).
-For the RID/FlySafe events accepted by the historical observer, DUML byte 8 has encryption selector
-0, so those payloads are plaintext **at the RC-local broker boundary**. This says nothing about O4
-radio confidentiality: an RC service may already have authenticated, decrypted, or translated the
-air link before publishing localhost DUML. The observer has no decryptor, and its aggregate
-CRC-valid counter could include frames with a nonzero selector.
+N3Live reads Goggles N3 USB IF4, not the RC-local broker. Its parser treats DUML byte 8 as an opaque
+`cmd_type`, accepts CRC-valid synthetic selector values 0 through 7, and has no selector decoder,
+decryptor or key path. Separately, the historical RC observer's RID/FlySafe semantic decoders require
+selector 0, so those admitted payloads are plaintext **at the RC-local broker boundary**. This says
+nothing about O4 radio confidentiality: an RC service may already have authenticated, decrypted or
+translated the air link. The retired observer's aggregate CRC-valid counter could still include
+frames with a nonzero selector.
 
 N3Live's 416-command table is generated from demangled
-`dji_cmd_base_req<...>` template symbols in a separate SDK library. It is evidence that a named
-template and constants existed; it does not establish request/ACK layout, target route, RC 2 or
-Mini 5 Pro implementation, policy gates, or a safe setter. Its `0x03/0x77`, `0x03/0x78`, and
+`dji_cmd_base_req<...>` template symbols in a separate SDK library that is not committed or hashed
+in the repository. It is a name/constant inventory rather than a call graph; it does not establish
+request/ACK layout, an executed send/parse path, target route, RC 2 or Mini 5 Pro implementation,
+policy gates, or a safe setter. Its `0x03/0x77`, `0x03/0x78`, and
 `0x11/0x4B` entries corroborate names only; their exact meanings come from the independent current
 binary analysis above.
 
@@ -826,22 +829,25 @@ facts, but the builds are now withdrawn because `connect()` itself may take owne
 broker fd. They must not be installed or started. Reconnect/backoff and an input-only label do not
 repair the architecture.
 
-The safe in-place replacement is v0.6 under the same package/signature. Its isolated release source
-set has no permissions, service, socket, broker-port constants, DUML, `Parcel`, Binder application
-transaction, external Activity launch or process execution. It performs only a user-triggered
-read-only inventory of the `protocol` Binder descriptor plus live package/UID/signature/ABI/
-debuggable/SELinux/upgrade-marker facts. It is a work-only admission probe, not a status listener or
-RID control, and does not belong in the MIT app.
+The safe in-place replacement is v0.7 under the same package/signature. Its isolated release source
+set has no permissions, service, socket, broker-port constants, DUML, `Parcel`, DJI protocol Binder
+application transaction, external Activity launch or process execution. It performs only a
+user-triggered read-only inventory of the `protocol` Binder descriptor plus fixed-package UID,
+process visibility, signer, ABI, component, installed/native-library paths, observer-view DAC/
+SELinux access, readable expected-library hashes, `ro.debuggable`, and upgrade-marker facts. Its
+schema, run ID, timestamps and local clipboard copy do not broaden that boundary. It is a work-only
+admission probe, not a status listener or RID control, and does not belong in the MIT app.
 
 The next work-only artifact is an ARM64-only JVMTI V0 attach canary (APK SHA-256
-`387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`). Two clean builds are
+`4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`). Two clean builds are
 byte-identical. Independent manifest/ZIP/ELF/disassembly audit confirms no DEX, Android permission,
 component or shared UID; its single AArch64 library exports only `Agent_OnAttach` and executes only
-`GetEnv(JVMTI)`, `GetVersionNumber` and one fixed numeric log. It deliberately has no
-`GetLoadedClasses`, `JNIEnv`, class/method inspection, socket, file/property, process, Binder, DUML,
+`GetEnv(JVMTI)`, `GetVersionNumber`, `DisposeEnvironment` and one fixed numeric log. It deliberately
+has no `GetLoadedClasses`, `JNIEnv`, class/method inspection, socket, file/property, process, Binder, DUML,
 GET or SET path. It has not been copied, installed or attached. Do not stage it until the complete
-v0.6 result closes live debug/ABI/package/helper/SELinux and actual target-load-path gates; even a
-success would prove only loader/JVMTI reachability, not EID/RID support.
+v0.7 result and a separately audited side-effect-free caller close live debug/ABI/package/helper/
+SELinux and actual target-load-path gates; even a success would prove only loader/JVMTI reachability,
+not EID/RID support. The previous non-disposing build is revoked.
 
 The ARM64 JVMTI V1 France-EID semantic-anchor resolver is also an offline-only work artifact. Its
 final APK SHA-256 is
@@ -851,7 +857,7 @@ post-fix audit agree. It enumerates already-loaded classes once, matches exactly
 shared-ClassLoader cardinality, deletes all references/allocations, disposes the per-call JVMTI
 environment, and emits numeric counts only. It does not load or initialize a class, access a field,
 invoke Java, or use GET/LISTEN/SET, socket, Binder, or DUML. It has never been copied, installed, or
-attached. V1 must remain after the v0.6 and V0 admission gates; success would prove only semantic
+attached. V1 must remain after the v0.7 and V0 admission gates; success would prove only semantic
 anchor topology, not EID readability or any RID switch.
 
 The same-owner native route also has a potential raw-EID-ACK observation surface, but it has not
@@ -878,7 +884,7 @@ Unless an item explicitly enters a separately authorized, capability-gated set/r
 the remaining probes are read-only.
 
 1. Obtain a legitimate current-session SDK/FlySafe inventory result through a path that reuses the
-   official transport owner. First overwrite any historical observer with v0.6 and require its exact
+   official transport owner. First overwrite any historical observer with v0.7 and require its exact
    live package/UID/signature/ABI/debuggable/SELinux/Binder gates. Do not open a second `40007` or
    `40009` connection, infer unsupported from absence, scan receiver addresses, guess adjacent
    commands, or reuse the legacy record parser for modern protobuf data.
@@ -894,7 +900,8 @@ the remaining probes are read-only.
    expose raw capture or fall back to localhost reconnects.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-6. After v0.6 gates, use the separately reviewed UID1000 transaction-1 Binder check only to classify
+6. After v0.7 gates and after a separately audited, side-effect-free, result-preserving UID1000
+   caller exists, use the transaction-1 Binder check only to classify
    manager liveness; it does not admit a `Pack`. Recover the exact live manager/callback/Parcelable
    ABI and prove that a candidate path preserves native selector 3 and retry 0 before considering a
    France-EID Binder GET. The current adjacent-ABI tx4 artifact loses `maxRetryCnt` (defaulting to 2)
