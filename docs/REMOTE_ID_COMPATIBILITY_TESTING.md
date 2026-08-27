@@ -1,6 +1,6 @@
 # Remote ID compatibility testing and region profiles
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 This note answers two related but materially different questions:
 
@@ -29,6 +29,7 @@ work.
 | FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
 | EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`) and BoolMsg config handlers; business logic owns it from cloud country membership plus C0 certification | Observation-only; converter type does not establish wire width, and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
+| RC 2 localhost status observer | An independent minimal Android app can make one input-only connection to `127.0.0.1:40007` and retain only strict, de-identified RID/FlySafe statuses | Work-only readback aid, default OFF and awaiting manual RC 2 installation/verification; it has no writer, reconnect, persistence, or switch semantics and does not enter this repository |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -109,6 +110,48 @@ the final read-only vector twice: FC=`CN`, Sky=`CN`, Ground=`CN`, RC/DJI Fly pol
 the UI observer gates the EID query on FC=`FR`, it will not send that request in this CN state; the
 separate CN-state EID probe had already shown the request as unavailable. This distinction prevents
 both unnecessary queries and the unsafe UI inference “no response = off”.
+
+### Rootless RC 2 localhost observer status
+
+A third-party research clone first demonstrated the useful lifecycle, but its approximately 52 MB
+APK also carried unrelated FCC, accessibility, boot-receiver, package-install, log, and Wi-Fi
+capabilities. It was therefore rejected for installation. The replacement is an independently
+implemented, approximately 2.3 MB research APK with package name `com.finduas.ridobserver`. It is
+default OFF and exposes only explicit manual Start/Stop. Each Start makes at most one connection to
+fixed loopback endpoint `127.0.0.1:40007`, obtains only the input stream, and stops on EOF or failure.
+There is no output stream, write, query, primer, setter, reconnect, boot start, sticky restart, or
+persistent state.
+
+The parser accepts only strict DUML framing/CRC plus the bounded RID/FlySafe status messages, then
+retains only de-identified typed state. The final manifest has exactly four permissions:
+
+- `android.permission.INTERNET`;
+- `android.permission.FOREGROUND_SERVICE`;
+- `android.permission.FOREGROUND_SERVICE_DATA_SYNC`;
+- `android.permission.POST_NOTIFICATIONS`.
+
+It has no receiver, accessibility service, package installer, log-reader, Wi-Fi/Bluetooth/location/
+storage/camera/microphone, USB-write, or root capability. All 9 protocol and safety unit tests and
+the debug build pass. Both source and APK remain work-only and are deliberately excluded from this
+MIT repository.
+
+The Mac host opened the RC 2 ADB bulk endpoints and sent `CNXN`, but the controller returned neither
+`AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy and libusb
+backends and with platform-tools 35.0.2. Consequently no shell or `adb install` was used. Full USB
+parentage then showed that the visible 45 GB and 256 GB storage LUNs both belonged to the aircraft,
+not the RC 2. An interim APK copy on aircraft internal storage was deleted only after its exact hash
+matched the known work artifact, and the aircraft volume was safely unmounted. The RC 2 microSD was
+not exported through the current USB configuration. The user instead provided an almost-empty
+removable card through a separate reader and explicitly authorized formatting; after exact device
+identity checks it was formatted MBR/ExFAT, received only the known APK with a matching
+source/destination hash, passed read-only ExFAT verification, and was safely ejected. Visible manual
+installation did not start because RC 2 offered only native reformat rather than browse for this
+Mac-created volume. The bounded next step is RC-native format followed by an APK-only copy through
+the reader. The app has not been launched or hardware-validated.
+
+This observer cannot log in to a DJI account, obtain or upload a license, change a license's enabled
+state, or establish RF behavior. It is only a privacy-bounded internal status/readback surface for a
+later independently observed motor-on experiment; it does not close any part of the setter path.
 
 ### Why a self-written switch must control an external source
 
@@ -284,6 +327,15 @@ account's signed licenses, push only licenses whose flight-controller serial mat
 aircraft, pull the aircraft inventory back, and use `setFlyZoneLicensesEnabled` to enable or disable
 a selected license. This is therefore not a locally minted preference or a generic configuration
 bit.
+
+The current public FlySafe front end exposes separate Mainland and overseas RID application forms,
+but server response `support_unlock_type` must contain `Rid` before the product is eligible, and the
+request binds product information to the flight-controller serial. No public response proves
+Mini 5 Pro/WA150 eligibility, signed-license issuance, or aircraft acceptance. The official chain
+therefore remains account authorization and server eligibility, then a genuine FC-bound signed
+license, aircraft pull/readback, bounded enable/restore, and independent motor-on RF observation.
+A missing result at any stage is unavailable/unknown, not permission to synthesize a record or call
+the enable endpoint blindly.
 
 The current MSDK 5.18 artifact adds a useful but still static clue. Its retained delegate branch
 after a leading stub return treats an enabled `RID_UNLOCK` license matching the current EU/China

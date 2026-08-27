@@ -296,23 +296,92 @@ but saw neither target push. No USB writes were made. This leaves both caches an
 unknown; it does not mean the aircraft reported `unsupported`, because these are registered
 current-session pushes and may require an official lifecycle or a state transition.
 
-The DJI Fly UI/account evidence must also stay versioned. The protected official 1.21.10 artifact
-retains generic account-license/aircraft-license UI and JNI symbol names, but currently provides no
-recovered embedded type-6-specific UI or Mini 5 Pro consumer entitlement proof. Separately, DJI's
-current public FlySafe front end does prove that official RID applications exist: Mainland China
-uses a Government-account `rid` form with `rid_level=2`, while the overseas path uses an
-EuropeanFcc-account `abroad-rid` form with `rid_level=1`. Both filter server product rows by
-`support_unlock_type` containing `Rid` and bind the selected product and FC serial. The public
-bundle contains no Mini 5 Pro product row, so eligibility remains unknown until a qualified,
-logged-in account receives the server list. The overseas terms also exclude a UAS carrying an EU
-2019/945 class-identification label; this condition must not be bypassed or falsified.
+### Current official `RID_UNLOCK` account-to-FC chain
 
-The closest executable public prior version, 1.21.4, recognizes only license types 0--4 and 255;
-numeric type 6 becomes `UNKNOWN` and can fall through to polygon parsing/labels. Its generic
-license switch cannot be identified as an RID switch. In that prior flow, login plus network gates
-server refresh of signed account licenses. Reading the FC inventory and displaying its enable state
-are not directly gated by account login, while import is gated by exact group-SN/current-FC-SN
-matching and the native current-device context.
+The DJI Fly UI/account evidence must stay versioned. Current static analysis of official DJI Fly
+1.21.10 now closes the native account-to-FC license architecture; it does **not** close Mini 5 Pro
+entitlement or type-6 runtime behavior. `LicenseUnlockLocalManager` obtains the current official-app
+token, then uses these two requests:
+
+```text
+GET api/v4/mobile/user
+GET api/v4/mobile/unlock_license_groups
+```
+
+The license-groups request has no body. It is submitted through DJI Fly's own network provider with
+the official user-token/client/timestamp/signature headers; this repository must not extract,
+reimplement, log, or proxy the app's embedded signing material. An empty token fails before the
+server request. A successful user response supplies `user_id`; user information and each returned
+license-group JSON object are cached locally. The public 1.21.4 Java flow additionally corroborates
+an exact group-`sn`/current-FC-serial match before import; the current 1.21.10 native retains both
+fields but its protected Java layer is not available for a line-for-line comparison. A cached group
+proves neither current entitlement nor that the FC imported it.
+
+Each server group contains signed onboard data rather than enough client-side fields to mint a
+license. Current 1.21.10 selects that data as follows:
+
+| FC unlock generation | Server data selected |
+| --- | --- |
+| V2 / version `0` | `onboard_license_v2` |
+| V3 / version `1` | target-specific entry from `onboard_license_v3` |
+| V4 / version `2` | target-specific entry from `onboard_license_v4` |
+
+V3/V4 additionally enforce the target key and minimum target index. The selected Base64-decoded
+signed blob is passed through the official upload session; DJI Fly does not reconstruct it from
+the visible `unlock_licenses[]` JSON fields. The current native manager closes all of these paths:
+
+```text
+FetchAndUploadLicenseData(groupId, deviceId)
+  -> FetchLicenseData(groupId, unlockVersion, targetIndex)
+  -> UploadLicenseData(deviceId, signedOnboardBlob)
+
+QueryFCLicenseInfo(deviceId)
+  -> version-specific V2/V3/V4 FC inventory session
+
+SetEnable(deviceId, enabled, licenseId)
+  -> version-specific V2/V3/V4 license-state session
+
+FetchLicenseDataAndEnableLicense(deviceId, groupId, licenseId)
+  -> FetchAndUploadLicenseData(...)
+  -> only after upload success: SetEnable(deviceId, true, licenseId)
+```
+
+That final upload-then-enable path is explicit in the callback implementation, not inferred from
+its name. It remains an architecture finding, not permission to upload or toggle a license.
+Inventory query itself has no visible account-login boolean gate, but FC-side signature, SN,
+user-ID, validity, and version checks can still reject import or enable.
+
+There is an important parser boundary. DJI Fly 1.21.10's generated `UnlockLicense.proto` models and
+native JSON type switch cover only types 0--4; they contain no generated `LicenseDataRID`, so its
+visible model cannot reliably label type 6 or recover its level. The closest executable public
+prior version, 1.21.4, likewise recognizes only types 0--4/255 and can mislabel type 6. In contrast,
+MSDK 5.18 explicitly models type 6 `RID_UNLOCK`, protobuf oneof field 7, and levels 1 `EUROPEAN` and
+2 `CHINA`. MSDK supplies the missing semantic schema, but it is not proof that DJI Fly 1.21.10's
+protected UI or the Mini 5 Pro runtime consumes that schema. A generic license label or switch must
+therefore never be presented as an RID control.
+
+DJI's current public FlySafe front end separately proves that official RID applications exist:
+Mainland China uses a Government-account `rid` form with `rid_level=2`, while the overseas path
+uses an EuropeanFcc-account `abroad-rid` form with `rid_level=1`. Both filter logged-in server
+product rows by `support_unlock_type` containing exact value `Rid` and bind the selected product
+and FC serial. No logged-in Mini 5 Pro capability row has been obtained, so eligibility remains
+unknown until a qualified account receives the server list. The overseas terms also exclude a UAS
+carrying an EU 2019/945 class-identification label; this condition must not be bypassed or falsified.
+
+The next live decision is deliberately only two stages, with de-identified yes/no or enum output:
+
+1. In the user's official logged-in context, answer only whether a Mini 5 Pro product row exists and
+   whether its `support_unlock_type` contains `Rid`.
+2. In the current FC session, answer only whether FlySafe license support is present, which unlock
+   generation is active (`V2`/`V3`/`V4`/unknown), whether inventory contains type 6, and, only when
+   it does, its level/valid/enabled baseline. A license ID may exist only in process memory.
+
+If stage 1 is negative, stage 2 cannot establish the official entitlement. If support/version is
+unknown, the inventory query fails, inventory has no genuine type 6, or provenance is not official,
+the procedure stops with **no setter**. No token, Cookie, serial, signed blob, full license ID, or
+raw frame may be exported. Only after both stages pass may a separately authorized work-only
+transaction use GET baseline -> one SET -> GET verify -> restore SET -> GET restore, followed by
+independent RF validation after user-initiated motor start.
 
 `IsEuCeEnableC0Rid` does have a recovered business caller. `UAVC0EuRidCloudControlLogic` reads the
 `EU_BUCKET_COEXIST_C0_RID` cloud namespace, checks whether the current area is in its
@@ -686,16 +755,24 @@ pushes and existing tests show that reconnect churn can disrupt the aircraft/con
 Port `40009` is a secondary direct-DUML observation path; `8902` is a different length-delimited
 stream and must not be fed to the DUML parser.
 
-A research-only implementation now closes the application lifecycle around that observer. Its
-Info-page control is explicitly manual and defaults to OFF; an existing foreground service owns
-at most one session so observation can continue while DJI Fly is visible. Boot/package startup,
-null sticky intents, and Auto-FCC actions cannot start it. Stop and service teardown close the
-active socket and join the worker; port busy, EOF, connection failure, cooperative yield, and
-internal failure are terminal and do not create a replacement connection. The UI receives only
-typed de-identified RID/EID flags, area/failure numbers, FlySafe version/support/encoding, and a
-timestamp. Targeted policy/protocol tests passed 23/23 and the debug package assembled, but it was
-not installed or run on hardware. Because the prototype lives in a third-party research clone,
-neither its source nor its APK belongs in this repository.
+Two Android artifacts must not be conflated. A roughly 52 MB debug APK built from a third-party
+research clone included unrelated Auto-FCC/DUML features and broad components such as a boot
+receiver, accessibility service, package-install/log/Wi-Fi capabilities, and was rejected for RC 2
+installation. It is not the observer candidate, was not installed, and neither that clone nor its
+APK belongs in this repository.
+
+A separate, independently written minimal observer-only APK is roughly 2.3 MB. It defaults OFF and
+has only a manually started, non-exported foreground data-sync service plus its launcher activity.
+It makes one read-only connection attempt to fixed localhost port `40007`, obtains no output stream,
+sends no primer/query/write, never reconnects, has no boot receiver or sticky restart, and retains
+only typed de-identified RID/EID and FlySafe status fields. Its manifest requests only Internet,
+foreground-service/data-sync, and notification permissions; it requests no Bluetooth, location,
+storage, camera, microphone, Wi-Fi-control, package-install, log, or accessibility capability.
+Stop/teardown closes the socket and joins the worker. Its focused protocol and safety tests pass
+9/9 and the small debug package builds, but installation and current Mini 5 Pro runtime validation
+remain separate hardware steps. This independent APK is a work-only validation artifact and also
+does not belong in the MIT repository; any later in-repository implementation must preserve the
+same zero-write, default-off, no-reconnect, de-identified lifecycle.
 
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus

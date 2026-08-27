@@ -107,6 +107,11 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     sender/receiver open and fail closed; never persist raw RID status payloads or infer RF
     transmission from an onboard `normal` bit alone.
 21. FlySafe `RID_UNLOCK` is a signed, account/FC-bound license, not a local configuration bit.
+    Official DJI Fly 1.21.10 obtains user context with `GET api/v4/mobile/user` and refreshes groups
+    with bodyless `GET api/v4/mobile/unlock_license_groups`, using DJI Fly's own authenticated
+    provider. It caches user/group JSON and selects signed `onboard_license_v2`, target-specific
+    V3, or target-specific V4 data according to the proven current FC generation. Never extract,
+    reproduce, log, or proxy token/signature material, and never synthesize an onboard blob.
     The completed legacy work-only probe reported only count, enabled/valid, type, and level and
     discarded raw payloads, license IDs, descriptions, times, coordinates, account/device
     identifiers, and serials. Its hand-built one-byte `0x11/0x11` request timed out and must not be
@@ -128,9 +133,13 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     set-enable map independently resolves `PackType 0x39` to tuple `11 12 00 01`; V2 uses a six-byte
     license-id/boolean payload and V3/V4 use a seven-byte version-specific payload. This is static schema
     evidence, not live acceptance or proof that changing any license changes RF. Current DJI Fly
-    1.21.10 proves only that generic license UI/JNI symbols are packaged, not a type-6 RID UI or
-    entitlement. The executable 1.21.4 prior version recognizes only types 0--4/255 and can
-    mis-handle type 6; never use that generic UI label/switch as proof of RID semantics.
+    1.21.10 now directly proves version-specific upload, inventory query, and `SetEnable`, including
+    explicit `FetchLicenseDataAndEnableLicense` upload-success-then-enable behavior. Its generated
+    proto and native JSON parser still cover only types 0--4 and do not model type 6 or its level.
+    MSDK 5.18 separately models type 6 `RID_UNLOCK` and levels 1 EU/2 China; that semantic schema is
+    not proof of Mini 5 Pro runtime acceptance. The executable 1.21.4 prior version also recognizes
+    only types 0--4/255 and can mis-handle type 6. Never use a generic UI label/switch as proof of
+    RID semantics, and never add upload or set-enable to this app.
 24. Current DJI Fly 1.21.10 initializes FlySafe unlock version to unknown and support to false, then
     populates them from registered area/version and whitelist/support pushes. A passive dual USB
     window saw neither push even though it validated ordinary aircraft and RC 2 frames. Absence is
@@ -146,6 +155,12 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     and the request binds product plus FC serial. No public evidence closes Mini 5 Pro/WA150
     issuance and FC acceptance. Never bypass account qualification, misstate EU label status,
     forge a license, or treat the existence of the form as product support.
+    The only next live decision is two-stage and fail-closed: (A) in the user's official logged-in
+    UI, record only Mini 5 Pro row exists yes/no and `support_unlock_type` contains `Rid` yes/no;
+    (B) in the current FC session, record only support yes/no, version V2/V3/V4/unknown, inventory
+    type-6 present yes/no, and, if present, level/valid/enabled. Keep any license ID only in memory.
+    If either stage fails, is unknown, lacks genuine type 6, or has unproven provenance, send no
+    setter. Do not export tokens, Cookies, serials, signed blobs, full license IDs, or raw frames.
 27. The full `01.00.0600`/`01.00.0700` `0802` ciphertext comparison found distinct wrapped
     scramble values, no equal aligned 16/32-byte payload blocks, and random-like XOR statistics.
     The five local STUE samples all have unique wrapped values. Do not repeat cross-version XOR,
@@ -174,13 +189,16 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     trust-chain primitive; do not downgrade for them. The forked FlyC `0xDA` dissector derives from
     an older AeroScope privacy-bit experiment that is incomplete, resettable, and unverified on
     WA150 standard RID. It is not a control candidate.
-33. A research-only Android prototype now wraps the rootless `40007` observer in an explicit
-    default-off Info-page Start/Stop flow. It uses one foreground-service-owned session, no
-    persistence, no boot/sticky/Auto-FCC auto-start, no output stream, and no reconnect; Stop and
-    service teardown close the socket and join the worker. Its 23 targeted tests and debug build
-    pass, but it has not been installed or hardware-validated. Keep that third-party clone and APK
-    out of this MIT repository; preserve the same lifecycle and privacy constraints in any clean
-    reimplementation.
+33. Keep two Android artifacts distinct. The rejected roughly 52 MB third-party clone APK bundled
+    unrelated Auto-FCC/DUML behavior and broad boot/accessibility/package-install/log/Wi-Fi
+    capabilities; it was not installed and must stay out of this MIT repository. The new roughly
+    2.3 MB observer is independently written and observer-only: default OFF, manual Start/Stop, one
+    non-exported foreground-service session, fixed localhost `40007`, one connection attempt, no
+    output stream, primer/query/write, reconnect, boot/sticky start, or persistence. It requests
+    only Internet, foreground-service/data-sync, and notification permissions and exports only
+    de-identified typed status. Its focused tests pass 9/9, but installation/runtime validation is
+    a separate hardware step. Keep this work-only APK out of the repository and preserve the same
+    zero-write lifecycle/privacy constraints in any clean reimplementation.
 
 ## Concurrency and state ownership
 

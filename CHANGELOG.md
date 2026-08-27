@@ -55,6 +55,21 @@ stable releases begin.
   strict read-only aircraft/RC 2 motors-off baselines. No status candidate appeared without an
   official subscription or state transition; this is not reported as lack of RID support or as an
   RF result.
+- Rejected installation of a third-party approximately 52 MB multi-capability APK and documented
+  the independent minimal `com.finduas.ridobserver` replacement: default-off manual Start/Stop,
+  one input-only `127.0.0.1:40007` session, no write/reconnect/boot/persistence, de-identified
+  statuses only, exactly four manifest permissions, a roughly 2.3 MB debug APK, and 9/9 passing
+  protocol and safety tests. Its source and APK remain work-only and outside this repository.
+- Recorded that the ADB host opens the RC 2 endpoints and sends `CNXN`, but receives neither
+  `AUTH` nor `CNXN` and stays offline across two platform-tools versions and both tested host
+  backends. No shell or ADB installation was used. USB parentage showed both visible storage LUNs
+  belonged to the aircraft; one interim work-only APK copy was removed only after an exact hash
+  match, and the RC 2 microSD was not exposed through that USB configuration. A separately resolved
+  removable card was explicitly authorized for MBR/ExFAT formatting, received the sole APK with a
+  matching source/destination hash, passed read-only ExFAT verification, and was safely ejected.
+  RC 2 nevertheless offered only native reformat rather than browse for that Mac-created volume;
+  the next bounded path is RC-native format followed by an APK-only copy. Visible installation and
+  post-install verification remain pending.
 - Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
   former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
   runtime parser disagree on the F8 prefix; current DJI Fly 1.21.10 native code resolves its build
@@ -67,6 +82,10 @@ stable releases begin.
   candidate: published type 6 with EU/China levels, account download, FC-SN filtering, push/pull,
   and license enable/disable semantics. Documented a privacy-redacted, read-only inventory check
   and explicitly excluded license upload, forgery, replay, and product integration of a setter.
+- Clarified that the public Mainland/overseas RID application forms still depend on server-side
+  `support_unlock_type=Rid` eligibility and bind product information to the flight-controller
+  serial; no public result establishes Mini 5 Pro/WA150 issuance or acceptance. A genuine signed
+  record, pull/readback, bounded restore, and independent motor-on RF observation remain required.
 - Recorded that the legacy inventory request timed out through both direct-aircraft and RC 2 proxy
   routes while immediate FC-area and Sky/Ground-country positive controls succeeded. The cause
   remains unresolved; session, payload, route, and selected license version are possible factors,
