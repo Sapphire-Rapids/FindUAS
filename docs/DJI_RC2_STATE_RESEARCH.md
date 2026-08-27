@@ -13,6 +13,8 @@ or replace an independent Remote ID receiver.
 
 The separate area-code, FCC/CE policy, and O4 RF-power investigation is in
 [`DJI_RC2_RF_POWER_RESEARCH.md`](DJI_RC2_RF_POWER_RESEARCH.md).
+The distinction between a real aircraft control and a safe receiver compatibility-test profile is
+specified in [`REMOTE_ID_COMPATIBILITY_TESTING.md`](REMOTE_ID_COMPATIBILITY_TESTING.md).
 
 ## Evidence levels and scope
 
@@ -141,10 +143,18 @@ do exist have narrower scopes:
 | `setUASRemoteIDAreaStrategy()` | selects the MSDK regional delegate and feature interpretation | retained 5.18.0 logic checks the real area and rejects mismatches, with extra China restrictions |
 | internal Japanese registration SN mock | substitutes the SN sent to the Japanese registration web page in develop builds | does not write working status, PFST, or broadcast state |
 | French `EIDSwitch` | enables/disables the French EID standard on supported products | not the common FAA/EU/China/Japan RID broadcast control |
-| FlySafe `RID_UNLOCK` license | authorized European or China RID exception | retained delegate requires a matching, enabled managed license and would produce `NO_BROADCAST` |
+| FlySafe `RID_UNLOCK` license | managed European or China license type | a retained, stubbed delegate branch suggests that a matching enabled license would produce `NO_BROADCAST` |
 | RID cloud-control V2 | selects region/product data and sends it to the flight controller | no direct working-state or broadcast override was found |
 | EU C0 coexistence policy | enables the C0 RID mode only for cloud-selected countries and C0 aircraft | automatic regulatory policy, not a user/debug override |
 | RID broadcast-effect policy | writes a product-specific signal bitmap/quality value | tunes broadcast behavior; bit semantics are not yet recovered |
+
+DJI Fly does contain a separate internal-only area injection route through
+`key_country_code_local_forever_debug` and the native area-code manager. Normal synchronization can
+then propagate an area to the flight controller and Sky/Ground radio surfaces. It is not a pure
+Remote ID selector: it can affect FlySafe and radio regulatory policy at the same time, has no
+supported production UI, and does not prove the emitted Remote ID wire format. It is therefore a
+read-only research finding, not a proposed FindUAS control. The narrower
+`debug_area_code_switch` only gates part of device synchronization and is not a country selector.
 
 DJI documents the area-strategy setter as useful during development. Static analysis of the
 official 5.18.0 provided artifact shows that the retained implementation maps the strategy to an
@@ -160,8 +170,8 @@ PFST, or over-the-air transmission was found.
 The official FlySafe model includes `RID_UNLOCK`; current code recognizes European and China
 types. The retained default-delegate body, located after a leading stub return, accepts only an
 enabled license matching the current area strategy and would then report broadcasting disabled and
-state `NO_BROADCAST`. This is strong structural evidence for a managed authorization mechanism,
-not proof that the provided stubbed artifact executes the branch or that it is a locally generated
+state `NO_BROADCAST`. This is structural evidence for a possible managed authorization path, not
+proof that the provided stubbed artifact executes the branch or that it is a locally generated
 debug toggle.
 
 `IsEuCeEnableC0Rid` does have a recovered business caller. `UAVC0EuRidCloudControlLogic` reads the

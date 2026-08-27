@@ -23,6 +23,9 @@ network services without an explicit product decision and privacy review.
   flight-limit research; it is context, not a product integration contract.
 - `docs/DJI_RC2_RF_POWER_RESEARCH.md`: read-only DJI Fly/RC 2 regulatory area-code and FCC/CE RF
   policy research; it is context, not a radio-modification implementation or product feature.
+- `docs/REMOTE_ID_COMPATIBILITY_TESTING.md`: the safety boundary, regional profiles, and phased
+  design for isolated Remote ID receiver compatibility tests. It is not an aircraft-region or
+  broadcast-control specification.
 - `docs/ARCHITECTURE.md`: data flow, ownership, persistence, and extension seams.
 - `scripts/`: local checks and clean `.app` packaging.
 - `Packaging/Info.plist`: bundle identity and macOS privacy usage descriptions.
@@ -63,6 +66,10 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
    never infer one from UAS ID or query a private registration service.
 10. Configuration writes use FF02 with response, validate ranges, and require a visible user
     confirmation.
+11. FF01 Legacy/V2 is only the receiver-to-Mac wrapper. Do not label it as an ASTM, EU, Japan, or
+    China protocol selector.
+12. A compatibility-test region is read-only validation metadata. It must never trigger FF02,
+    FF03, DUML, country-code, channel-plan, RF-power, aircraft, or account writes.
 
 ## Concurrency and state ownership
 
@@ -80,6 +87,8 @@ Never commit:
 - extracted APKs, vendor binaries, icons, sounds, model databases, or decompiled source;
 - executable RF-region/power profiles, blind DUML keepalive loops, or claims that a local socket
   write proves actual EIRP changed;
+- fixtures containing real aircraft identities or positions, or a test profile with executable
+  country-code, radio, aircraft, receiver, or authorization writes;
 - `.build/`, `dist/`, app bundles, crash reports, or local JSONL history.
 
 Tests must use obviously synthetic identifiers and coordinates. Protocol issue templates require
@@ -94,6 +103,13 @@ by `scripts/build-app.sh`.
 - Keep `CFBundleIdentifier` stable so macOS permissions and local history survive updates.
 - The package minimum is macOS 14 and Swift tools 6.0. Keep `FindUASCore` free of AppKit,
   CoreBluetooth, SwiftUI, and MapKit so it can seed a future Windows implementation.
+- Name any future region control “validation profile” and state that it does not change device
+  region. A replay controller must own isolated framing/session state, create evidence per decoded
+  frame before merging, and never infer it from `activeTargets`. It must not publish into live
+  targets, alerts, whitelist, maps, exports, or `RecordStore`.
+- Never add a generic aircraft “Remote ID off” control. The recovered French EID setting, MSDK
+  development area strategy, and managed `RID_UNLOCK` license path are distinct mechanisms and
+  do not belong in this external-receiver client.
 
 ## Adding protocol support
 

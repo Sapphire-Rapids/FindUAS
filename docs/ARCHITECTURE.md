@@ -64,6 +64,11 @@ There is intentionally no network client or cloud synchronization.
 
 - Add field aliases and normalized values in `FindUASCore`, not in views.
 - Add another transport by feeding complete receiver notification bytes into `TelemetrySession`.
+- Compatibility replay must use separate framing/session state and a result publisher. Produce
+  per-frame validation evidence immediately after decode and before any target merge; never infer
+  evidence from `activeTargets`. It must not enter `BluetoothManager`, live `AppState`, alerts,
+  whitelist, maps, exports, or `RecordStore`. Region profiles are validator metadata only; see
+  [`REMOTE_ID_COMPATIBILITY_TESTING.md`](REMOTE_ID_COMPATIBILITY_TESTING.md).
 - A Windows client should reimplement discovery/connection and UI while reusing or porting the core
   framing fixtures and model semantics.
 - Reverse geocoding, identity enrichment, and private database access are out of scope by default.

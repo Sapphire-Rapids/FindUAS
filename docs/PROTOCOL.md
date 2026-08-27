@@ -44,6 +44,10 @@ must balance the outer `{` and `}` while respecting JSON string quoting and back
 
 Saved protocol values in the Android client were `0 = automatic`, `1 = legacy`, and `2 = v2`.
 
+These values select only the FF01 receiver-to-client wrapper. They do not select an ASTM,
+ASD-STAN, Japanese, Chinese, or other over-the-air Remote ID protocol. No receiver country,
+jurisdiction, or Remote ID standard-selection field has been recovered.
+
 ## FF02 configuration
 
 The write payload uses these exact JSON keys:
@@ -64,6 +68,10 @@ Receiver reports may additionally contain `batteryPercent`, `support5GChannel`, 
 ```json
 {"sound":true,"flashLight":true,"vibrate":false,"channelStayTime":2,"batteryPercent":82,"channel":[6,149]}
 ```
+
+Channel selection controls receiver scanning behavior; it is not evidence that a regional Remote
+ID profile or BLE/Wi-Fi air protocol changed. The separate compatibility-test design is documented
+in [`REMOTE_ID_COMPATIBILITY_TESTING.md`](REMOTE_ID_COMPATIBILITY_TESTING.md).
 
 ## FF01 telemetry
 

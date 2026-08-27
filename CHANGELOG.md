@@ -3,6 +3,13 @@
 All notable user-visible changes are documented here. The project follows semantic versioning once
 stable releases begin.
 
+## Unreleased
+
+### Documentation
+
+- Defined the boundary and phased design for isolated Remote ID region-profile compatibility
+  testing, distinct from aircraft broadcast, regulatory-area, and RF-power controls.
+
 ## 0.1.0 - 2026-08-27
 
 ### Added

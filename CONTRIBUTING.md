@@ -15,6 +15,11 @@ contributors.
 Protocol contributions should use minimal synthetic or redacted fixtures. Do not attach a complete
 flight log merely to demonstrate one field alias.
 
+Remote ID compatibility fixtures must use obvious `TEST-*` identities and artificial coordinates.
+A region validation profile is descriptive metadata only: do not include executable country-code,
+radio-power, aircraft, receiver, DUML, FF02/FF03, or authorization writes. See
+[the compatibility-test design](docs/REMOTE_ID_COMPATIBILITY_TESTING.md).
+
 ## Hardware reports
 
 Useful reports include receiver model, firmware version, macOS version, transport mode, packet

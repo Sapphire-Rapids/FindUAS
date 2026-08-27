@@ -126,6 +126,9 @@ swift build -c release --product FindUAS
   账号同步与运行时飞行限制状态的只读研究；不属于 FindUAS 产品集成；
 - [docs/DJI_RC2_RF_POWER_RESEARCH.md](docs/DJI_RC2_RF_POWER_RESEARCH.md)：DJI Fly/RC 2 的地区码、
   FCC/CE 法规档案与 O4 射频功率控制面的只读研究；不包含可执行功率修改包；
+- [docs/REMOTE_ID_COMPATIBILITY_TESTING.md](docs/REMOTE_ID_COMPATIBILITY_TESTING.md)：Remote ID
+  开关、DJI 地区策略和各地区接收兼容性测试的边界与实现方案；建议的是隔离的离线验证档案，
+  不会改变飞机、遥控器、接收器的地区或发射状态；
 - [CONTRIBUTING.md](CONTRIBUTING.md)：贡献与硬件报告流程；
 - [CHANGELOG.md](CHANGELOG.md)：用户可见变更。
 
