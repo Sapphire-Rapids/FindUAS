@@ -101,6 +101,35 @@ These controls strengthen the area-code-policy model. No evidence was found that
 country, resource overlay, certificate replacement, or public settings screen directly exposes
 the same control in a production RC 2 build.
 
+### Verified `rc331/0205` platform path
+
+Offline inspection of the independently verified official adjacent
+`rc331/10.00.0700/0205` base-system OTA adds a lower platform layer. Init and SELinux material
+define `dji_link`, `dji_sdrs_agent`, `dji_wlm`, and `dji_lte` as integrated root services. Static
+evidence supports this country flow:
+
+```text
+authenticated DJI Fly / DUSS country input
+  -> dji_link country conversion/event
+  -> /mnt/dji_persist/country.bin
+  -> dji_sdrs_agent wireless-country operation
+  -> SDR/radio policy
+```
+
+Both `dji_link` and `dji_sdrs_agent` are configured with `AUTH_DJIGO`. The binaries contain explicit
+country conversion, persistence, CRC, success/failure, EU-state, and wireless-country operations.
+This closes the platform ownership relationship but does not yet reveal the exact message ID,
+payload, precedence rule, or permission check. It must not be converted into a guessed writer.
+
+`dji_wlm` also contains an internal `wlm_power_ctrl_test` handler and log strings for forcing SDR,
+Wi-Fi, and LTE power *levels*. No literal FAA control, safe public property, supported level enum,
+handler registration, or downstream SDR acceptance rule was recovered. Nearby `dbg.*` names are
+trace/debug controls, not evidence that a `setprop` changes RF output. This is a new static search
+anchor, not a usable FCC switch.
+
+The platform result came from an adjacent OTA and was not exercised on the live controller. It
+does not justify root, bootloader unlock, service invocation, property writes, or RF testing.
+
 ## Community DUML path audit
 
 FreeFCC sends DUML frames to the RC 2 loopback TCP proxy at `127.0.0.1:40009`. ADB or sideloading
@@ -243,15 +272,18 @@ transmit-power readings.
 1. Recover the current `AreaCodeFromSky`, `AreaCodeFromGround`, `CountryCode`, and support-query
    registrations from matching `libsdk_jni`/KeyValue native libraries. The FC `AreaCode` mapping
    itself is now confirmed.
-2. Recover the O4 meaning and ownership of selector value `5`, including reconnect and reboot
+2. Recover the authenticated handler registration and xrefs linking `dji_link` country events to
+   `dji_sdrs_agent`, and the internal `dji_wlm` test-handler registration. Do not guess message IDs
+   or power-level values from log strings.
+3. Recover the O4 meaning and ownership of selector value `5`, including reconnect and reboot
    fallback behavior.
-3. Keep country-only, FC-area-only, SDR-selector-only, and combined changes separate. Sky country
+4. Keep country-only, FC-area-only, SDR-selector-only, and combined changes separate. Sky country
    is proven only for this fixed route/session. Recover the exact modern Ground route/context from
    passive evidence before proposing another separately authorized test; do not treat the prior
    timeout as permission to retry and do not replay opaque profile frames as the baseline.
-4. Determine the final authority and persistence boundary among ground, sky, flight-controller,
+5. Determine the final authority and persistence boundary among ground, sky, flight-controller,
    Wi-Fi, and app policy state.
-5. Use calibrated RF equipment before making any claim about dBm or EIRP.
+6. Use calibrated RF equipment before making any claim about dBm or EIRP.
 
 This repository must not ship a power-modification profile or a blind keepalive loop. A future
 region lab must snapshot every independently writable surface, journal the original values before

@@ -29,8 +29,12 @@ stable releases begin.
   matching ACK and left readback at CN. These are not described as a complete region, Remote ID,
   channel, or RF-power change.
 - Documented the DJI Assistant 2 `wa150`/`rc331` package inventory, the `0802` main-system and
-  `2603` GNSS module evidence, the PRAK/STUE trust boundary, and a deliberately non-flashable
-  integrity experiment. No firmware binary, downloader, upgrader, or Remote ID patch is included.
+  `2603` GNSS module evidence, and the corrected distinction between IMaH parser support and missing
+  target PRAK/STUE material.
+- Recorded no-force verification of the official adjacent `rc331/10.00.0700/0205` Android OTA, its
+  29-partition inventory, the system-UID/non-root development-assistant boundary, and the decision
+  to reject bootloader unlock/root on the current controller. No firmware, APK, extracted partition,
+  downloader, upgrader, root tool, or Remote ID patch is included.
 
 ### Security and privacy
 

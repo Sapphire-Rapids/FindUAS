@@ -35,6 +35,90 @@ An outer RC local-storage string also reported `08.00.01.20`. It is not the same
 the canonical package value and must not be converted or compared as though the formats were
 equivalent. Package byte counts below are sums of module files, not single monolithic downloads.
 
+## `rc331` adjacent-package diff
+
+Official controller packages `10.00.0700` and `10.00.0800` each contain four modules. `0200` and
+`0205` changed; `0600` and `1400` have identical version, size, and MD5 records:
+
+| Module | `10.00.0700` | `10.00.0800` | Evidence-based role |
+| --- | --- | --- | --- |
+| `0200` | `12.14.13.85`, 454,223,680 B | `12.18.16.30`, 468,098,688 B | FLYA/DJI Fly candidate; nested FLYA/TBIE/TEE boundary remains |
+| `0205` | `00.01.14.99`, 985,959,104 B | `14.00.00.04`, 985,790,560 B | Android/Qualcomm A/B base-system OTA |
+| `0600` | `10.06.00.50`, 108,640 B | identical | RC MCU; unchanged and not the primary adjacent RID/account candidate |
+| `1400` | `10.00.19.01`, 25,644,608 B | identical | exact role unresolved; unchanged and lower priority |
+
+## Verified `rc331/10.00.0700/0205` Android OTA
+
+The official `0205` module remained outside the repository and matched all download metadata:
+
+| Field | Value |
+| --- | --- |
+| Size | 985,959,104 bytes |
+| Official MD5 | `5c874f6e39819067caa31b67e0ad341b` |
+| Local SHA-256 | `f707cf3dc0be2894b111ce4973d0206e896a2c7e9c4ebe43de1040b528cf49ce` |
+
+An independent `dji_imah_fwsig.py` pass used public `PRAK-2020-01` with no force option. The IMaH
+v2 header signature, stored/encrypted chunk checksum, and plain/decrypted chunk checksum all passed;
+no chunk was skipped or truncated. The container is type `QCS6`, one chunk, with no content-
+encryption key.
+
+The verified inner object is an Android SignApk OTA containing `payload.bin`,
+`payload_properties.txt`, metadata, and `otacert`. Its update-engine metadata enumerates 29
+partitions: `abl`, `aop`, `bluetooth`, `boot`, `bw_secure`, `cpucp`, `devcfg`, `dsp`, `dtbo`,
+`featenabler`, `hyp`, `imagefv`, `keymaster`, `modem`, `multiimgoem`, `odm`, `product`, `qupfw`,
+`shrm`, `system`, `system_ext`, `tz`, `uefisecapp`, `vbmeta`, `vbmeta_system`, `vendor`,
+`vendor_boot`, `xbl`, and `xbl_config`. Only selected system/vendor/product/odm/boot/vbmeta
+partitions were extracted for static inspection; the enumeration does not mean all 29 were extracted.
+
+The base OTA's `/dji_apk` directory is empty. This positively separates the readable platform OTA
+from the still-missing matching DJI Fly APK and `libsdk_jni.so`. The changed `0200` module remains
+the stronger offline DJI Fly target.
+
+## No-root RC 2 access boundary
+
+The selected `vendor` filesystem contains `/vendor/app/dpad_fuli`, package `com.dpad.fuli`, version
+`1.0.08.29-5e7f0af3`. Its manifest sets `sharedUserId="android.uid.system"`, `coreApp=true`, and
+`debuggable=true`. Its command screen forwards entered text to `Runtime.getRuntime().exec(...)`.
+That is a privileged system-UID execution context under SELinux, **not root UID 0**. Its `haveRoot()`
+helper merely attempts the literal command `adb shell su`; there is no successful `su` or `id`
+transcript. The app also exposes updater/recovery, Type-C, FTM, SDR, MCU, and log-toggle surfaces,
+none of which was launched on the live controller.
+
+This is evidence from adjacent official package `10.00.0700`, not proof that the connected
+controller runs the same package or exposes the same activity. The latest live rootless MTP/PTP
+view returned 14 directories and zero files, with no DJI Fly APK or `dpad-test` path. Assistant's
+RC 2 front end advertises all-log export, but the matching backend `GetLogList` and `ExportAllLog`
+methods are explicit unsupported stubs. Its separate data-export mode was not entered because it
+changes device service state.
+
+Targeted inspection of `dji_link`, `dji_lte`, `dji_wlm`, `dji_sdrs_agent`, and their Duml/WLM/TEE
+libraries identified no explicit Remote ID/RID/UAS-ID platform service and no DJI user-account
+`account`/`login` service. This is a scoped negative result for the base OTA, not product-wide
+absence. `dji_link` activation, certificate, TEE, RPMB, and crypto-state paths describe device
+activation/trust and must not be relabelled as DJI user login.
+
+The same inspection recovered an explicit lower platform country path: root service `dji_link`
+handles authenticated country events and persists `/mnt/dji_persist/country.bin`; root service
+`dji_sdrs_agent` applies a wireless-country operation. Both are configured with `AUTH_DJIGO`.
+`dji_wlm` also contains an internal SDR/Wi-Fi/LTE power-level test handler, but no safe public
+property, level enum, registered message ID, or downstream acceptance rule was recovered. These are
+static anchors, not permission to invoke a service or guess a writer.
+
+The base properties are debug-friendly, but the DJI-modified `adbd` overrides the ordinary
+`ro.adb.secure` result with a production/user-lock function. Its decision combines production
+state, debug count, user/lockscreen state, and a one-time authorization flag. Therefore
+`ro.adb.secure=0` is not proof of an unauthenticated root shell. If a future ADB test is separately
+authorized, it must use an isolated disposable key and stop after a handshake plus `id` if the
+production gate blocks access.
+
+Root or bootloader unlock is therefore not the next step. A separately authorized, allow-listed
+system-UID check of `id` and `pm path dji.go.v5`, followed only after review by a controlled copy of
+public base/split APK paths, is the nearest justified escalation. No such command was run in this
+pass. Bootloader unlock, Magisk/root, modified boot, and flash are rejected on the current
+controller: AOSP specifies a data wipe and changed Verified Boot state, and a public single-device
+RC 2 report records persistent DJI TEE/application failure and a later non-booting state. That
+report is a serious warning, not proof of an eFuse mechanism or a universal outcome.
+
 ## `wa150` adjacent-package diff
 
 Both aircraft packages contain ten module records. Eight records have identical version, size, and
@@ -63,10 +147,11 @@ report type `GNSS`. The `0802` anti-version changed from 1 to 2 between packages
 filename change from `.ar1` to `.ar2`. The official meaning of the filename suffix itself remains
 an inference.
 
-The public `dji-firmware-tools` PRAK variants do not validate this newer header/signature, and the
-tool has no `STUE` decryption material. Analysis therefore stopped at the authenticated/encrypted
-outer boundary. `--force-continue` was not used: unsupported output must not be represented as
-verified plaintext.
+Upstream `dji-firmware-tools` supports IMaH v2 and 384-byte/3072-bit RSA/PSS signatures. The blocker
+for these `wa150` files is target-specific key material: none of the public PRAK variants matches
+their signatures, and no public reproducible `STUE` decryption material is available. Analysis
+therefore stopped at the authenticated/encrypted outer boundary. `--force-continue` was not used;
+it would continue with encrypted/unverified chunk data, not produce verified plaintext.
 
 This is the current firmware blocker. Obtaining a binary is no longer the problem; obtaining a
 lawful, reproducible, integrity-checked plaintext view of `0802` is.
@@ -115,22 +200,26 @@ The size remained 679,295,296 bytes, but:
   remained in the IMaH header.
 
 This proves failure at both the Assistant package MD5 and internal payload-digest layers. It is not
-an RID patch and does not by itself prove an RSA verification result, because the public verifier
-cannot validate the original PRAK signature either. The experiment did not repair checksums,
+an RID patch and does not by itself prove an RSA verification result, because no matching public
+`wa150` PRAK key is available to validate the original signature. The experiment did not repair checksums,
 re-sign, repack, transfer, or flash the file.
 
 ## Handoff sequence
 
 1. Keep originals immutable and outside this repository. Verify size, official MD5, and local
    SHA-256 before every analysis run.
-2. Seek an authorized read-only plaintext source for `0802`; do not treat forced extraction as
-   validated output.
-3. If plaintext becomes available, inventory Android OTA/A/B/AVB and nested containers with
-   info/verify operations before extraction.
-4. Diff 0600 and 0700 by file hash, then inspect changed init scripts, SELinux policy, system/vendor
-   services, JNI libraries, wireless configuration, and RID/PFST anchors.
-5. Correlate static findings with the read-only RID status/HMS timeline and an independent RF
+2. Controller track: use the verified `rc331/0205` filesystem inventory rather than repeating its
+   extraction. With separate authorization, first establish whether the live build exposes the
+   same development assistant and public `dji.go.v5` package path. Otherwise continue the `0200`
+   FLYA/TBIE/TEE trust-boundary work offline.
+3. Aircraft track: seek an authorized read-only plaintext source for `wa150/0802`; do not treat
+   forced extraction as validated output. If plaintext becomes available, inventory nested
+   containers before extraction and diff 0600/0700 by file hash.
+4. Correlate any static finding with the read-only RID status/HMS timeline and an independent RF
    receiver. Aircraft self-report alone is not proof of OTA transmission.
+5. Do not unlock the current controller bootloader, root/Magisk-patch it, modify boot, flash it, or
+   reuse an existing/private ADB key. A future authorized ADB experiment must use an isolated,
+   disposable key and a fixed read-only command set.
 6. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
    control in FindUAS.
 
@@ -139,6 +228,10 @@ re-sign, repack, transfer, or flash the file.
 - Never commit DJI firmware, APKs, extracted vendor files, decrypted partitions, Assistant static
   material, request-authentication material, temporary CDN links, account data, device IDs, or
   modified firmware copies.
+- Never commit extracted RC 2 partitions, platform applications, system binaries, ADB keys, or
+  device-authorization records. System UID must never be described as root.
+- Do not launch `dpad_fuli` updater/recovery, Type-C, FTM, SDR, MCU, or log-toggle functions for
+  exploratory purposes. Adjacent-package presence is not live-device proof.
 - `dji-firmware-tools` is GPL-3.0. Do not copy it into this MIT repository.
 - The installed Assistant's `app.asar` contains abnormal entries that caused a whole-archive
   extractor to create about 153 GiB of invalid temporary data. Use targeted reads or validate entry
@@ -152,4 +245,9 @@ re-sign, repack, transfer, or flash the file.
 - [DJI Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [Nozomi Networks: DJI Mavic 3 firmware analysis](https://www.nozominetworks.com/blog/dji-mavic-3-drone-research-part-1-firmware-analysis)
 - [`dji-firmware-tools`](https://github.com/o-gs/dji-firmware-tools)
+- [`dji-firmware-tools` 3072-bit IMaH support](https://github.com/o-gs/dji-firmware-tools/commit/739da082c08418d74195dcd4002322bff08014a1)
 - [Unicore UC6580 product page](https://en.unicore.com/products/dual-band-gps-chip-uc6580/)
+- [Independent exact `rc331/0205` corroboration](https://github.com/danusha2345/SkylabFCCfree/commit/51ef14244cbd2e9346db67fd9dd15e08e30750e8)
+- [AOSP Verified Boot device state](https://source.android.com/docs/security/features/verifiedboot/device-state)
+- [AOSP Verified Boot flow](https://source.android.com/docs/security/features/verifiedboot/boot-flow)
+- [RC 2 single-device risk report](https://github.com/whitelewi1-ctrl/dji-rc2-research/commit/fc5949acfe8196e2faccf96615821b62fbe60804)

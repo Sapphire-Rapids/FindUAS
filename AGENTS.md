@@ -33,9 +33,9 @@ network services without an explicit product decision and privacy review.
 - `docs/DJI_RC2_RF_POWER_RESEARCH.md`: predominantly read-only DJI Fly/RC 2 regulatory area-code
   and FCC/CE RF-policy research, including separately authorized bounded state-only transactions;
   it is context, not a radio-modification implementation or product feature.
-- `docs/DJI_RID_FIRMWARE_RESEARCH.md`: Assistant 2 inventory, `wa150` module-role evidence, IMaH
-  trust boundaries, and a non-flashable offline integrity experiment; it is context, not a firmware
-  downloader, upgrader, signature bypass, or Remote ID control implementation.
+- `docs/DJI_RID_FIRMWARE_RESEARCH.md`: Assistant 2 inventory, the encrypted `wa150` trust boundary,
+  verified `rc331/0205` Android OTA/platform inventory, and non-flashable offline integrity work;
+  it is context, never a downloader, upgrader, root guide, signature bypass, or Remote ID control.
 - `docs/REMOTE_ID_COMPATIBILITY_TESTING.md`: the safety boundary, regional profiles, and phased
   design for isolated Remote ID receiver compatibility tests. It is not an aircraft-region or
   broadcast-control specification.
@@ -189,6 +189,30 @@ produce a flashable image. A deliberately corrupted integrity sample must be cle
 `nonflashable`, remain outside the repository and vendor cache, and document exactly which checks
 failed.
 
+Parser support, availability of the matching authentication key, and availability of a content-
+decryption key are separate facts. Public tooling supports IMaH v2 and 384-byte/3072-bit RSA/PSS;
+the current `wa150` blocker is missing target-matching PRAK and STUE material, not a new unsupported
+container format. Forced processing of an encrypted chunk is still encrypted/unverified data.
+
+Official `rc331/10.00.0700/0205` passed its public outer signature and chunk checksums without force
+and may be used for offline filesystem analysis only. It is the Android/Qualcomm base-system OTA,
+not the matching DJI Fly module. All extracted partitions, APKs, platform apps, and binaries remain
+outside this repository.
+
+The analysed adjacent OTA contains `com.dpad.fuli` with Android system UID. System UID is not root,
+and adjacent-package presence is not live-device proof. Do not launch its updater/recovery, Type-C,
+FTM, SDR, MCU, log-toggle, or other factory-test functions for exploration.
+
+Do not infer an open root shell from `ro.debuggable=1` or `ro.adb.secure=0`: the analysed DJI
+`adbd` replaces the ordinary decision with a production/user-lock gate. Device activation/crypto
+state is also distinct from DJI user-account login.
+
+Do not unlock the bootloader, root/Magisk-patch, modify boot, flash, enable ADB, authorize a
+persistent ADB key, or execute device shell commands without a new, action-specific authorization
+and a bounded recovery procedure. Never read, reuse, or publish an existing/private `.adbkey` or
+device authorization record. Any future authorized ADB test must generate a disposable key in an
+isolated temporary directory and document its removal.
+
 The installed Assistant `app.asar` has abnormal entries: whole-archive extraction once produced
 about 153 GiB of invalid temporary files. Use targeted reads or validate entry offsets and lengths
 before extracting. Do not repeat whole-archive extraction.
@@ -208,6 +232,7 @@ Never commit:
   material, account tokens, or private operator-ID suffixes;
 - DJI firmware, modified firmware, decrypted partitions, module configs, Assistant static material,
   request-authentication material, account/session values, or temporary signed download links;
+- ADB private/public key pairs, device authorization records, or exported Android package material;
 - `.build/`, `dist/`, app bundles, crash reports, or local JSONL history.
 
 Tests must use obviously synthetic identifiers and coordinates. Protocol issue templates require

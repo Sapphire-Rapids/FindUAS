@@ -187,8 +187,9 @@ Application Support：可能包含 UAS/登记标识、接收器标识、厂商�
   FCC/CE 法规档案与 O4 射频功率控制面的以只读为主研究；记录的有界 country 事务不包含功率写入，
   仓库也不提供可执行功率修改包；
 - [docs/DJI_RID_FIRMWARE_RESEARCH.md](docs/DJI_RID_FIRMWARE_RESEARCH.md)：`wa150`/`rc331` 的
-  Assistant 2 版本清单、`0802`/`2603` 模块判断、IMaH 信任边界和不可刷写完整性实验；不属于应用
-  功能，仓库不包含厂商固件、下载器、升级器或 Remote ID 关闭补丁；
+  Assistant 2 版本清单、`wa150` 目标密钥边界、已验签的 `rc331/0205` Android OTA/平台清单、
+  system UID 与 Root 风险边界及不可刷写完整性实验；不属于应用功能，仓库不包含厂商固件、APK、
+  提取分区、下载器、升级器、Root 工具或 Remote ID 关闭补丁；
 - [docs/REMOTE_ID_COMPATIBILITY_TESTING.md](docs/REMOTE_ID_COMPATIBILITY_TESTING.md)：Remote ID
   开关、DJI 地区策略和各地区接收兼容性测试的边界、当前 no-RF 安全预览与外部受控信号源方案；
   验证配置文件不会改变飞机、遥控器、接收器的地区或发射状态；

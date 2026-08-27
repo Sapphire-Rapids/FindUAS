@@ -358,11 +358,51 @@ The RC 2 (`2ca3:1021`, `KATMAI-IDP`) exposes:
 
 - interface 0: vendor DUML bulk, OUT `0x01`, IN `0x81`;
 - interface 1: MTP/PTP;
-- interface 2: an ADB-capable interface that currently remains `offline`.
+- interface 2: an ADB-shaped interface. An earlier snapshot reported `offline`; the latest
+  read-only run deliberately did not start a host ADB server, attempt a handshake, or authorize a
+  key, so current ADB usability was not tested.
 
 The aircraft (`2ca3:0020`) exposes RNDIS, mass-storage, and several vendor bulk interfaces. Passive
 traffic and matching query replies verify interface 4, OUT `0x04` / IN `0x85`, as a direct FC DUML
 path on this aircraft. This is stronger evidence than descriptor naming alone.
+
+### Verified offline controller platform, without root
+
+The official adjacent `rc331/10.00.0700/0205` module was downloaded outside this repository and
+matched its exact size, official MD5, and local SHA-256. A public `PRAK-2020-01` verification pass,
+without force, passed the IMaH v2 header signature and both stored/plain chunk checksums. The inner
+object is a signed Android OTA whose update-engine metadata enumerates 29 A/B partitions. Only
+selected partitions were extracted for static inspection.
+
+This OTA is the Android/Qualcomm base system, not DJI Fly. Its `/dji_apk` directory is empty, so the
+matching `dji.go.v5` and `libsdk_jni.so` gap remains. The adjacent changed `0200` module is the
+stronger offline DJI Fly/FLYA candidate.
+
+The selected vendor image contains the preinstalled `com.dpad.fuli` development assistant. It uses
+`android.uid.system` and its internal command UI forwards entered text to `Runtime.exec(...)`.
+System UID is not root UID 0; the app's attempt to run `adb shell su` is not evidence that `su`
+succeeds. The same app exposes updater/recovery, Type-C, FTM, SDR, MCU, and log controls. None was
+launched on the live controller, and adjacent-package presence does not prove the current live
+build contains the same app.
+
+The live rootless view remains narrower: standard MTP/PTP returned 14 directories and zero files,
+with no DJI Fly APK or `dpad-test` path. Assistant's visible all-log route reaches backend
+`GetLogList` and `ExportAllLog` methods that are explicit unsupported stubs; its separate data-
+export mode was not entered because that would change device service state. No developer app,
+shell, ADB authorization, root, unlock, transfer, reboot, or flash was exercised.
+
+Targeted base-OTA inspection did not identify an explicit RID/UAS-ID platform service or DJI user
+`account`/`login` service. Its activation, certificate, TEE, RPMB, and crypto-state paths are device
+trust mechanisms, not evidence of user-account state. The matching DJI Fly/aircraft runtime remains
+the account/RID target. The DJI-modified `adbd` also overrides ordinary `ro.adb.secure` behavior
+with a production/user-lock gate, so debug-friendly build properties are not proof of an open root
+shell.
+
+Root and bootloader unlock are not required for the next research step and are rejected for the
+current controller. AOSP specifies a data wipe and changed Verified Boot state for lock-state
+transitions. A public single-device RC 2 report also records persistent DJI TEE/application failure
+and a later non-booting state after unlock/root work. That is risk evidence, not proof of a universal
+outcome or an eFuse mechanism.
 
 ### RC bridge addressing and aircraft link
 
@@ -480,18 +520,25 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
+1. With separate, action-specific authorization, first establish whether the adjacent official
+   development-assistant route exists on the live controller using only `id` and
+   `pm path dji.go.v5`. If the results are bounded and non-root, review a second authorization to
+   copy only package-manager public base/split APK paths to shared storage. Do not invoke updater,
+   recovery, Type-C, FTM, SDR, MCU, or log-toggle functions; do not reuse a private ADB key, unlock,
+   root, or flash.
+2. Continue the `rc331/0200` FLYA/TBIE/TEE path offline if the live public-APK route is unavailable.
+3. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
-2. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush`, retaining both
+4. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush`, retaining both
    failure fields and the accompanying HMS 30331--30334 state.
-3. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
+5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-4. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
+6. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
    GET response before considering any authorized set/readback test; separately recover
    `IsEuCeEnableC0Rid`, RID working-status subscription, and aircraft binding without
    probe-writing them.
-5. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
-6. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
+7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
+8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
    [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext
    view before doing a 0600/0700 file-level diff; do not force-extract `STUE` ciphertext.
 
@@ -503,6 +550,11 @@ the remaining probes are read-only.
 - [DJI FAA Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI account/offline-limit support note](https://repair.dji.com/help/content?customId=en-us03400011758&pbc=mF6h4ZTt&spaceId=34)
 - [DJI Mobile SDK V5 sample repository](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
+- [AOSP Verified Boot device state](https://source.android.com/docs/security/features/verifiedboot/device-state)
+- [AOSP Verified Boot flow](https://source.android.com/docs/security/features/verifiedboot/boot-flow)
+- [Android `ApplicationInfo` public APK paths](https://developer.android.com/reference/android/content/pm/ApplicationInfo)
+- [Independent exact `rc331/0205` corroboration](https://github.com/danusha2345/SkylabFCCfree/commit/51ef14244cbd2e9346db67fd9dd15e08e30750e8)
+- [RC 2 single-device risk report](https://github.com/whitelewi1-ctrl/dji-rc2-research/commit/fc5949acfe8196e2faccf96615821b62fbe60804)
 
 Community reverse-engineering repositories were used to locate candidate native symbols and old
 protocol context, but unverified command mappings are deliberately not presented here as facts.
