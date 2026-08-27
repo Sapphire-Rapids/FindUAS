@@ -63,12 +63,11 @@ stable releases begin.
   official subscription or state transition; this is not reported as lack of RID support or as an
   RF result.
 - Rejected installation of a third-party approximately 52 MB multi-capability APK and documented
-  the independent minimal `com.finduas.ridobserver` replacement. Its current v0.4 remains
-  default-off/manual/input-only, observes one fixed `40007` or `40009` session, has no request
-  builder/output stream/write/reconnect/boot/persistence, and adds strict same-epoch query/ACK
-  correlation plus separate privacy-only type-6 and France-EID lanes. It retains exactly four
-  manifest permissions; 44/44 observer, 31/31 wire-codec, and 20/20 type-6-parser tests pass. Its
-  source and APK remain work-only and outside this repository.
+  the independent `com.finduas.ridobserver` research line. Historical v0.1-v0.4 are withdrawn and
+  must not be installed or started: even an input-only `40007`/`40009` connection may replace DJI
+  Fly's single active broker fd. Their parsers/tests remain offline-only. The same-package v0.6
+  replacement has no permission, service, socket, DUML, Binder application transaction, or device
+  command; it is only a work-only environment inventory and still awaits the staged RC 2 check.
 - Recorded that the ADB host opens the RC 2 endpoints and sends `CNXN`, but receives neither
   `AUTH` nor `CNXN` and stays offline across two platform-tools versions and both tested host
   backends. No shell or ADB installation was used. USB parentage showed both visible storage LUNs
@@ -78,13 +77,35 @@ stable releases begin.
   matching source/destination hash, passed read-only ExFAT verification, and was safely ejected.
   RC 2 initially offered only native reformat rather than browse for that Mac-created volume.
   After RC-native storage setup, the user successfully installed the signed PackageInstaller and
-  FileManager helpers plus an earlier observer build. The reviewed v0.4 update still awaits the
-  same manual overwrite-install/runtime check; ADB remains offline and was not used.
+  FileManager helpers plus an earlier observer build. That historical observer must remain stopped
+  and be overwritten in place by the no-permission/no-socket v0.6 environment probe; ADB remains
+  offline and was not used.
 - Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
   former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
   runtime parser disagree on the F8 prefix; current DJI Fly 1.21.10 native code resolves its build
   as `[batch_status][hash][cached-size value]...`. The UAV139/wa150 abstraction dynamically
   registers both RID-policy mappings, but the live FC still returns no metadata for either.
+- Audited N3Live at pinned revision `bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0`.
+  Target RID/FlySafe DUML accepted by the retired observer uses encryption selector 0 and is clear
+  at the RC-local broker boundary; this does not show that the O4 radio link is clear. N3Live's
+  416-command list proves extracted native template symbols and constants, not payload layout,
+  target route, product support, runtime preconditions, or safe setter semantics.
+- Closed product-139's EASA operator-registration surface: the registered
+  `OperatorRegistrationNumber` string GET/SET handlers use `0x03/0x78`, with an explicit delete
+  operation. This is OPID registration data, not a broadcast Boolean. A complete current Fly/MSDK
+  sweep found no ordinary Boolean master switch spanning France EID, EASA OPID/C0, Japan DIPS,
+  FAA/US, and China OID. Legacy `EidOpen`/`EidClose`/`EidIsOpen` declarations and the industry-France
+  `EIDBroadcastEnable` key stop at generated/shared metadata in the current app; none has a current
+  native handler or UAV139 characteristic, so they do not establish a Fly 1.21.10/WA150 control.
+- Recorded the offline-only ARM64 JVMTI V1 France-EID semantic-anchor resolver (final APK SHA-256
+  `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`). It only counts two exact
+  already-loaded generated thunks and their shared ClassLoader, then cleans references and disposes
+  its JVMTI environment. It has never been copied, installed, or attached and contains no Java
+  invocation, GET/LISTEN/SET, socket, Binder, or DUML path.
+- Located same-owner raw France-EID ACK evidence before the native Boolean converter and a native
+  all-command observer before pending matching. Neither has live admission: locking/thread
+  serialization, C++ callback ABI, observer ID, removal, and unload lifecycle remain unresolved,
+  and no sender or setter was built or run.
 - Audited public RC331 extraction/decryption prior art and found no exact, reproducible no-root
   base/split export for the current build and no plaintext recovery of the exact `10.00.0700/0200`
   FLYA; root and bootloader unlock therefore remain outside the next-step path.

@@ -234,6 +234,34 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     socket, file/property, process, Binder, DUML and SET paths. Never stage it before v0.6 closes
     the live debug/ABI/package/helper/SELinux and target-load-path gates. Canary success proves only
     loader/JVMTI reachability, not France EID, FAA/global RID or setter safety.
+37. N3Live evidence is pinned to revision `bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0`.
+    Target frames accepted by the retired observer use DUML encryption selector 0, so their payload
+    is clear at the RC-local `40007`/`40009` broker boundary; never restate this as evidence that O4
+    RF is clear. N3Live's 416-command table is extracted template-symbol metadata, not proof of a
+    request/response layout, target route, product support, runtime gate, or safe setter.
+38. Product 139 registers `OperatorRegistrationNumber` string GET/SET handlers on `0x03/0x78`;
+    the action has GET, validated SET, and DELETE operations. It is the EASA OPID registration data
+    plane, not an enable Boolean. Do not confuse it with France `0x03/0x77`, Japan `0x11/0x4B`,
+    China OID, FlySafe type 6, or an FAA/global RID switch.
+39. The complete current-static sweep found no ordinary Boolean master switch spanning France
+    EID, EASA OPID/C0, Japan DIPS, FAA/US, and China OID. `EidOpen`/`EidClose`/`EidIsOpen` have only
+    generated/legacy key metadata, and `EIDBroadcastEnable` belongs to the MSDK France-industry
+    delegate. Current `libsdk_jni.so` has none of their names, handlers, or UAV139 characteristics;
+    concrete alternate handlers exist only in a separate MSDK MG/industry line. Do not implement
+    or document any of them as an applicable Fly 1.21.10/WA150 fallback.
+40. A same-owner native EID GET ACK can retain `[protocol_result,state]` before the converter folds
+    failures into `Boolean(false)`, and an all-command observer runs before pending matching. This
+    is static evidence only. Dynamic observer registration has not closed lock/thread
+    serialization, `std::__ndk1::function` ABI, observer-ID collision, callback removal, or unload
+    lifetime. No breakpoint/probe/hook has live admission. Never add a sender or SET on this basis.
+41. The work-only ARM64 JVMTI V1 semantic-anchor resolver APK has final SHA-256
+    `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`. It is offline-only and
+    has never been copied, installed, or attached. It enumerates already-loaded classes, matches
+    exactly the generated `electronicIDBroadcastOn` and `electronicIDBroadcastExisted` thunk
+    signatures, checks shared-ClassLoader cardinality, cleans all references/allocations, disposes
+    its JVMTI environment, and logs numeric counts. It does not load/initialize a class, access a
+    member, invoke Java, GET/LISTEN/SET, or use socket/Binder/DUML. Never stage it before v0.6 and
+    V0 pass their separate gates; success proves topology only, not EID readability or RID control.
 
 ## Concurrency and state ownership
 

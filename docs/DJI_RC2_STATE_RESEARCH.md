@@ -161,10 +161,20 @@ do exist have narrower scopes:
 | `setUASRemoteIDAreaStrategy()` | selects the MSDK regional delegate and feature interpretation | retained 5.18.0 logic checks the real area and rejects mismatches, with extra China restrictions |
 | internal Japanese registration SN mock | substitutes the SN sent to the Japanese registration web page in develop builds | does not write working status, PFST, or broadcast state |
 | French `EIDSwitch` | enables/disables the French EID standard on supported products; its native `0x03/0x77` request format is now recovered | not the common FAA/EU/China/Japan RID broadcast control |
+| EASA operator registration | product 139 registers `OperatorRegistrationNumber` String GET/SET/delete on `0x03/0x78` | writes or removes OPID identity data; it is not a broadcast Boolean |
 | FlySafe `RID_UNLOCK` license | managed European or China license type | a retained, stubbed delegate branch suggests that a matching enabled license would produce `NO_BROADCAST` |
 | RID cloud-control V2 | selects region/product data and sends it to the flight controller | no direct working-state or broadcast override was found |
 | EU C0 coexistence policy | enables the C0 RID mode only for cloud-selected countries and C0 aircraft | automatic regulatory policy, not a user/debug override |
 | RID broadcast-effect policy | writes a product-specific signal bitmap/quality value | tunes broadcast behavior; bit semantics are not yet recovered |
+
+The current DJI Fly 1.21.10 native plus all readable 1.21.4 business DEX were also swept for an
+ordinary cross-region control. No Boolean master switch spanning France EID, EASA OPID/C0, Japan
+DIPS, FAA/US, and China OID was found. `EidOpen`/`EidClose`/`EidIsOpen` remain declarations without
+a closed current handler, product registration, caller, or gate. `EIDBroadcastEnable` belongs to
+the MSDK France-industry delegate rather than the consumer DJI Fly/WA150 path. All four stop at
+generated/shared metadata in the current app: current `libsdk_jni.so` contains none of their exact
+names, handlers, or UAV139 characteristics. These names are not applicable fallback controls for
+the current Fly 1.21.10/product-139 investigation.
 
 ### Recovered French EID native request
 
@@ -209,6 +219,23 @@ unsupported, or unreachable through DJI Fly's private in-process session. No `0x
 request was sent, there was no retry/address scan, and writes remain prohibited unless a matching
 official GET first establishes support, live route and baseline and a separate authorized procedure
 defines readback and restoration.
+
+### Recovered EASA OPID string request
+
+Current DJI Fly 1.21.10 registers product 139's `OperatorRegistrationNumber` String key with the
+free GET/SET handlers for FLYC `0x03/0x78`. The action distinguishes three operations:
+
+| Operation | Request body |
+| --- | --- |
+| GET | `[02]` |
+| DELETE | `[01]` |
+| SET a valid 20-character value | `[00][10][first 16 validated bytes]` |
+
+The GET ACK begins `[result,length,data...]`; SET/DELETE return a result. The application validates
+the 20-character operator registration with its area-code and Luhn mod-36 rules before SET. This
+closes a product-139 identity-data route, not a Remote ID transmitter enable/disable route. Its
+runtime Characteristics may still override the static destination, and no live OPID request was
+sent as part of this static finding.
 
 ### Other development and authorized-exception paths
 
@@ -772,6 +799,21 @@ the second-client localhost-observer architecture is retired and neither port is
 observation path. `8902` remains a different length-delimited stream and must not be fed to a DUML
 parser.
 
+N3Live was separately audited at pinned revision
+[`bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0).
+For the RID/FlySafe events accepted by the historical observer, DUML byte 8 has encryption selector
+0, so those payloads are plaintext **at the RC-local broker boundary**. This says nothing about O4
+radio confidentiality: an RC service may already have authenticated, decrypted, or translated the
+air link before publishing localhost DUML. The observer has no decryptor, and its aggregate
+CRC-valid counter could include frames with a nonzero selector.
+
+N3Live's 416-command table is generated from demangled
+`dji_cmd_base_req<...>` template symbols in a separate SDK library. It is evidence that a named
+template and constants existed; it does not establish request/ACK layout, target route, RC 2 or
+Mini 5 Pro implementation, policy gates, or a safe setter. Its `0x03/0x77`, `0x03/0x78`, and
+`0x11/0x4B` entries corroborate names only; their exact meanings come from the independent current
+binary analysis above.
+
 Two Android artifacts must not be conflated. A roughly 52 MB debug APK built from a third-party
 research clone included unrelated Auto-FCC/DUML features and broad components such as a boot
 receiver, accessibility service, package-install/log/Wi-Fi capabilities, and was rejected for RC 2
@@ -800,6 +842,27 @@ component or shared UID; its single AArch64 library exports only `Agent_OnAttach
 GET or SET path. It has not been copied, installed or attached. Do not stage it until the complete
 v0.6 result closes live debug/ABI/package/helper/SELinux and actual target-load-path gates; even a
 success would prove only loader/JVMTI reachability, not EID/RID support.
+
+The ARM64 JVMTI V1 France-EID semantic-anchor resolver is also an offline-only work artifact. Its
+final APK SHA-256 is
+`ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`; two clean builds and the
+post-fix audit agree. It enumerates already-loaded classes once, matches exactly the generated
+`electronicIDBroadcastOn` and `electronicIDBroadcastExisted` thunk signatures, verifies their
+shared-ClassLoader cardinality, deletes all references/allocations, disposes the per-call JVMTI
+environment, and emits numeric counts only. It does not load or initialize a class, access a field,
+invoke Java, or use GET/LISTEN/SET, socket, Binder, or DUML. It has never been copied, installed, or
+attached. V1 must remain after the v0.6 and V0 admission gates; success would prove only semantic
+anchor topology, not EID readability or any RID switch.
+
+The same-owner native route also has a potential raw-EID-ACK observation surface, but it has not
+passed live admission. In current `libsdk_jni.so`, product-139's `0x03/0x77` response lambda still
+holds the correlated raw `[protocol_result,state]` before its converter folds every nonzero result
+into `Boolean(false)`. A native all-command observer is called before the pending matcher and could
+therefore see an ACK later consumed by DJI Fly. Static recovery did not find locking around its
+add/remove/map iteration, however, and receive-worker serialization, `std::__ndk1::function` ABI,
+observer-ID collision, callback removal, and agent-unload lifetime remain open. No live
+breakpoint/probe/hook or dynamic registration is admitted, and this surface sends neither GET nor
+SET by itself.
 
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus

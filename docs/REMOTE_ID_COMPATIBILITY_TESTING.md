@@ -25,12 +25,17 @@ work.
 | --- | --- | --- |
 | Disable ordinary aircraft Remote ID | No public generic DJI switch was found; US and current Chinese requirements explicitly prevent an ordinary operator disable control | Do not implement |
 | French Electronic ID switch | Product-139 native FLYC `0x03/0x77` is exact: GET `[02]`, SET `[00]/[01]`, static default receiver `0x92`, GET ACK `[result,state]`, SET ACK `[result]`; two artificial direct-USB GET routes returned no canonical ACK | Report those routes as unavailable and keep it research-only; require an official private-runtime GET/ACK and never call it generic RID |
+| EASA operator registration / OPID | Product 139 registers the `OperatorRegistrationNumber` String GET/SET handlers on `0x03/0x78`; the action provides GET, validated SET, and DELETE | Identity-data entry only; never label it a broadcast switch |
+| Legacy/industry EID names | `EidOpen`/`EidClose`/`EidIsOpen` and industry-France `EIDBroadcastEnable` stop at generated/shared metadata in current Fly; current `libsdk_jni.so` has no corresponding handler or UAV139 characteristic | Not applicable fallback controls for current Fly 1.21.10/product 139 |
 | DJI MSDK area strategy | Selects a regional SDK delegate for development; it is not proof of changing the aircraft's true region or over-the-air format | Investigate only in a separate, supported MSDK test app |
 | FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
 | EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`), type 0 and width 1; business logic owns it from cloud country membership plus C0 certification, while both current F7 routes returned status `03` rather than metadata | Observation-only; no F8 snapshot/rollback target or RF semantics exist, so F9 is a hard do-not-send and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
 | RC 2 localhost status observer | Historical v0.1–v0.4 opened a second input-only `40007`/`40009` connection, but adjacent official framework evidence now proves these endpoints default to a single active fd and a newcomer may replace DJI Fly's connection | Withdrawn: do not install or start. Offline parsers remain research material; v0.6 replaces it in place with a no-permission/no-socket environment probe and still has no switch semantics |
+| N3Live command/DUML evidence | Pinned `bb254b0`: accepted target DUML has encryption selector 0 at the localhost broker, while the 416-command table is extracted template-symbol metadata | Clear broker payload is not proof of clear O4 RF; a symbol-table entry is not payload/route/product/setter proof |
 | RC 2 DJI Fly JVMTI V0 canary | ARM64-only, no DEX/permission/component/shared UID; runtime is limited to `GetEnv(JVMTI)`, `GetVersionNumber` and one fixed numeric log, with no class enumeration/`JNIEnv`/Java-method/DJI/protocol/control path | Built and independently audited, never copied/installed/attached. Do not stage before v0.6 closes live debug/ABI/helper/SELinux/target-load gates; success would prove only attach reachability |
+| RC 2 DJI Fly JVMTI V1 semantic anchors | Final APK SHA-256 `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`; counts two exact already-loaded France-EID thunks and shared ClassLoader only | Offline-only, never copied/installed/attached. It invokes no Java/GET/LISTEN/SET and follows v0.6 plus V0; success proves topology only |
+| Same-owner raw EID ACK observation | The product-139 response lambda retains `[result,state]` before Boolean folding; a native all-command observer runs before pending matching | Static only. No live admission until lock/thread/ABI/ID/callback/unload lifecycle is closed; it adds no GET or SET |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -137,6 +142,30 @@ execution; and never starts a DJI component or writes a property. A manual snaps
 SELinux, `ro.debuggable`, and upgrade-marker facts. Even a matching descriptor is an environment
 gate, not a RID state, transaction authorization or switch.
 
+N3Live was reviewed at pinned revision
+[`bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0).
+The retired observer's target RID/FlySafe decoders accept DUML whose encryption selector is 0, so
+those payloads are plaintext at the localhost broker boundary. This does **not** prove the O4 air
+link is plaintext; an RC service may already have decrypted or transformed it. N3Live's generated
+416-command list proves extracted `dji_cmd_base_req<...>` template symbols and constants only. It
+does not prove payload layout, receiver route, Mini 5 Pro support, policy gates, or safe writes.
+
+The V1 ARM64 JVMTI semantic-anchor resolver is likewise offline-only. Its final audited APK
+SHA-256 is `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`. It only enumerates
+already-loaded classes, counts the exact `electronicIDBroadcastOn` and
+`electronicIDBroadcastExisted` generated thunk signatures and their shared ClassLoader, cleans all
+references/allocations, disposes its JVMTI environment, and logs numeric counts. It invokes no Java
+method and has no GET/LISTEN/SET, socket, Binder, or DUML path. It has never been copied, installed,
+or attached and cannot be considered until v0.6 and V0 separately pass. A success would establish
+semantic-anchor topology only, not an EID getter or RID control.
+
+The current same-owner native path preserves raw `0x03/0x77` `[protocol_result,state]` immediately
+before the product-139 converter folds nonzero results into `Boolean(false)`. A native all-command
+observer also runs before the pending matcher. Neither is live-admissible yet: the observer's
+add/remove/iteration path has no closed locking proof, and receive-thread serialization, C++
+function ABI, observer-ID collision, callback removal, and unload lifetime remain unresolved. No
+breakpoint/probe/hook or dynamic registration has been run, and neither surface sends a GET or SET.
+
 The Mac host opened the RC 2 ADB bulk endpoints and sent `CNXN`, but the controller returned neither
 `AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy and libusb
 backends and with platform-tools 35.0.2. Consequently no shell or `adb install` was used. Full USB
@@ -197,6 +226,15 @@ No generic local `force working`, `broadcast enabled`, or `disable RID` debug Bo
 the recovered DJI Fly and MSDK paths. The aircraft's self-report must also not be confused with an
 independent RF observation; a separate receiver is still required to show that packets are
 actually receivable.
+
+The current DJI Fly 1.21.10 native and every readable 1.21.4 business DEX were also checked across
+the known regional planes. They contain separate France EID, EASA OPID/C0, Japan DIPS, FAA/US
+status, China OID/UTMISS, and FlySafe exception mechanisms, but no ordinary Boolean master switch
+spanning them. Legacy `EidOpen`/`EidClose`/`EidIsOpen` declarations do not close a current handler,
+product registration, caller, or gate; `EIDBroadcastEnable` is the MSDK France-industry delegate,
+not the consumer DJI Fly/WA150 path. All four stop at generated/shared metadata in current Fly;
+current `libsdk_jni.so` has none of their handlers or UAV139 characteristics. None is a current
+product-139 fallback master switch.
 
 The two current-DJI-Fly FC policy names are also no longer viable live switch candidates on the
 tested Mini 5 Pro. With Assistant closed, strict direct-aircraft and RC-routed F7 metadata GETs for
@@ -260,6 +298,19 @@ RID control.
 FindUAS is a BLE client for the external receiver and has no supported DJI aircraft control path.
 The narrowly labelled, FR-gated fixed GET may remain as experimental read-only status; an EID
 setter and any mapping from French EID to a generic Remote ID switch do not belong in the app.
+
+### EASA OPID is a string identity route, not a switch
+
+Current DJI Fly 1.21.10 statically closes product 139's registered
+`OperatorRegistrationNumber` String GET/SET handlers on `0x03/0x78`. The request action distinguishes
+GET `[02]`, DELETE `[01]`, and validated SET `[00][10][first 16 bytes]`; the application first checks
+the complete 20-character input with its area-code and Luhn mod-36 rules. A GET ACK begins
+`[result,length,data...]`, while SET/DELETE return a result.
+
+This is the EASA operator-registration/OPID data plane. It can provide identity data used by a
+regional RID workflow, but it is not a Boolean that enables or disables RF broadcast. The runtime
+Characteristics can still override the static destination, and no live OPID transaction was
+performed for this static result.
 
 ### DJI's area strategy is a development policy selector
 

@@ -148,12 +148,27 @@ RID 状态帧以及 FlySafe `0x03/0x09`/`0x03/0x42` push，但后续静态审计
 `1746446e94bdb9df3c7ccb4cf1a1244fb200728827405891d61fcdc1a7941475`；它仍是 work-only 研究工具，
 不进入本 MIT 应用的产品能力。
 
+对 [N3Live 固定版本
+`bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0)
+的交叉审计进一步限定了这里的“明文”含义：历史 observer 目标事件的 DUML encryption selector
+为 0，因此其 payload 在 RC 2 的 localhost broker 边界是明文；这不证明飞机与遥控器之间的 O4
+空口为明文，broker 之前仍可能已经解密或转换。N3Live 的 416-command 表来自 native template
+符号抽取，只能证明命令模板/常量存在，不能单独证明 payload、目标地址、当前产品支持或安全写法。
+
 另一个 work-only 工件是 ARM64 JVMTI V0 attach canary，SHA-256 为
 `387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`。两次全新构建字节一致，
 独立审计确认 APK 无 DEX、权限、组件或 shared UID；唯一 AArch64 library 只执行
 `GetEnv(JVMTI)`、`GetVersionNumber` 和一条固定数值日志。它不枚举类、不取得 `JNIEnv`，也不含
 socket、文件/属性、进程、Binder、DUML、GET 或 SET。该工件尚未复制、安装或 attach；必须先取得
 v0.6 的完整实机门禁，且即使 attach 成功也只证明加载/JVMTI 可达，不证明 EID/RID 支持。
+
+V1 France-EID semantic-anchor resolver 也只完成了离线实现与审计，最终 APK SHA-256 为
+`ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`。它只枚举已经加载的类，
+精确计数 `electronicIDBroadcastOn` 与 `electronicIDBroadcastExisted` 两个 generated thunk，并
+确认它们是否共享一个 ClassLoader；随后清理引用、释放本次 JVMTI environment，只输出数字计数。
+它没有加载/初始化类、访问字段、调用 Java 方法、GET/LISTEN/SET、socket、Binder 或 DUML，且从未
+复制到设备、安装或 attach。V1 只证明语义锚点拓扑，必须排在 v0.6 和 V0 之后另行准入，不能证明
+France EID 可读，更不能证明存在 FAA/global RID 开关。
 
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
 platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因此没有取得 shell，也没有执行
@@ -223,6 +238,20 @@ GET body 为 `[02]`、SET body 为 `[00]`/`[01]`，默认 receiver 为 type 18/i
 FC 明确读回 FR 时查询，且没有 setter。飞机直连和 RC 2 USB 两条人工 clear-wire GET 均未收到
 canonical ACK，因此只说明这两条实验 USB route 不成立，不能否定官方 private DJI Fly runtime
 route，也不能把静态 France EID 支持宣称为当前实机可用。
+
+同一轮静态审计还闭合了 product 139 已注册的 EASA
+`OperatorRegistrationNumber` 字符串 GET/SET：它使用 `0x03/0x78`，并有明确 delete 操作。这是
+operator registration/OPID 数据面，不是 RID 播报 Boolean。对 DJI Fly 1.21.10 native 与可读
+1.21.4 业务层的完整扫描没有找到能跨 France EID、EASA OPID/C0、Japan DIPS、FAA/US 与 China
+OID 生效的普通 Boolean 总开关；`EidOpen`/`EidClose`/`EidIsOpen` 只有未闭合的旧 key 声明，
+`EIDBroadcastEnable` 则属于 MSDK 的 France industry 路径。四者在当前包里最强的正证据都止于
+generated/shared key metadata；当前 `libsdk_jni.so` 没有对应名称、handler 或 UAV139
+characteristic，均不能视为 Fly 1.21.10/WA150 可用替代控制。
+
+官方 transport owner 内确有比 Java Boolean 更早的只读取证点：product-139 `0x03/0x77` GET
+response 在 converter 之前仍保留 raw `[result,state]`，native 也有 pending matcher 之前的
+all-command observer。前者尚无获准的无侵入 live probe，后者的 add/remove/遍历没有闭合锁、线程
+串行化、C++ ABI、observer ID 和卸载生命周期；两者都**尚未获得实机准入**，也都不会自行发送 GET。
 
 要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
 [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、
