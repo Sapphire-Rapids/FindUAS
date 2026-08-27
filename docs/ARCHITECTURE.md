@@ -35,6 +35,9 @@ The UI never parses raw packets.
 has no generic-command or write API. `DJIRegionLab.swift` contains only non-executable allow-list,
 snapshot, journal-value, and reconciliation models for tests and future design work; there is no
 journal store, transaction coordinator, writer transport, or UI writer in the current build.
+The product-139 France-EID request uses the recovered static default target `0x92` and body `[02]`;
+its response validator alone accepts the clear closed set `{0x80,0xC0}` and requires the exact
+two-byte successful body before applying the official `state & 1` interpretation.
 
 `FindUASCoreChecks` is an executable check target rather than XCTest so contributors can run the
 same regression suite with a minimal Swift toolchain.

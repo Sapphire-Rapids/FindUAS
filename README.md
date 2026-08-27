@@ -139,21 +139,24 @@ Mini 5 Pro 起桨实验中与独立接收器同步复核。
 
 为避免把只读观察器与无关能力混在一起，本轮明确拒绝安装一个约 52 MB、同时带有 FCC、无障碍、
 开机接收器、安装包、日志及 Wi-Fi 修改能力的第三方 APK。随后独立实现了最小的 research-only
-Android 应用 `com.finduas.ridobserver`：默认关闭，只能手动 Start/Stop；每次 Start 最多连接一次固定
-`127.0.0.1:40007`，只取得 input stream，端口忙、断流或失败即停止；没有 write、query、setter、
-reconnect、boot receiver 或持久化，只显示经严格解析且已去敏的状态。最终 manifest 只有 Internet、
-前台服务、data-sync 前台服务和通知四项权限，9/9 项协议与安全测试通过，debug APK 约 2.3 MB。
-源码与 APK 仍是 work-only 工件，不进入本 MIT 仓库。
+Android 应用 `com.finduas.ridobserver`。当前 v0.4 默认关闭，只能手动 Start/Stop；一次只观察固定
+`127.0.0.1:40007` 或 `40009` 的一个 input-only session，端口忙、断流或失败即停止。它没有
+output stream、query/request builder、setter、reconnect、boot receiver 或持久化，只显示经严格
+CRC、命令、sequence、反向 route 与同一 connection epoch 门禁后得到的去敏状态。40009 另把
+France EID `0x03/0x77` 与 FlySafe type-6 inventory 分成两个互不背书的被动 canary；前者明确不是
+FAA/全局 RID，后者只有在 fresh V3/V4 + usable support + 官方 Query/ACK 同时可见时才输出汇总。
+最终 manifest 仍只有 Internet、前台服务、data-sync 前台服务和通知四项权限；observer 44/44、
+wire codec 31/31、type-6 parser 20/20 测试通过。源码与 APK 仍是 work-only 工件，不进入本 MIT
+仓库。
 
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
 platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因此没有取得 shell，也没有执行
 `adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB 存储都属于飞机，而不是 RC 2；一次
-误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全卸载该卷。RC 2 后插入的 microSD
-没有通过当前 USB configuration 暴露给 Mac，因此改由独立读卡器锁定一张专用卡，按明确授权格式化
-为 MBR + ExFAT，把唯一 APK 做源/目标哈希校验后安全弹出。RC 2 对该 Mac 格式只提供重新格式化而
-不能浏览，因此当前正改为“RC 2 原生格式化 → Mac 只复制 APK”的路径，尚未完成可见系统安装确认。
-它尚未启动或完成 Mini 5 Pro 实机验证；即使验证成功，也只是
-RID/FlySafe 内部状态的只读 readback 面，不是 Remote ID 开关。
+误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全卸载该卷。后来用户用 RC 2 原生处理的
+microSD 成功安装了 DJI 签名的 PackageInstaller/FileManager helpers 和较早 observer，证明了无需
+Root/ADB 的人工更新路径。v0.4 已完成构建、签名、lint、zipalign 与独立静态审计，仍需在 RC 2 上
+覆盖安装并取得当前 Mini 5 Pro 的 40007/40009 实机结果。即使观察成功，它也只是只读证据面，不是
+Remote ID 开关。
 
 `rid_broadcast_effect_icloud_control` 也完成了一次匿名最小云查询：命名空间存在，但当前返回只包含
 产品 158/159 的全零广播效果配置，产品 139/WA150 不在响应中。这进一步排除了把该字段直接当成
@@ -207,6 +210,14 @@ DJI Fly 1.21.10 的 FlySafe observer 链也已完整复核：它只在本地登�
 不发送订阅或 GET，也不会在新 listener 注册后重放历史帧。若 runtime product 确为 139，正式许可查询
 最终由官方 `PackManager` 把 receiver 选为 `0x92`，三种已知版本都一样；在 support/version push 未
 真实出现前，不能手写请求、猜版本或轮询 receiver。
+
+France EID 的地址级静态链也已闭合：product 139 最终使用 UAV139 free handlers，`0x03/0x77`
+GET body 为 `[02]`、SET body 为 `[00]`/`[01]`，默认 receiver 为 type 18/index 4（packed
+`0x92`），canonical GET/SET ACK 分别为 `[result,state]` 与 `[result]`。macOS 固定只读桥已据此
+修正旧的 `0x03` 目标，并把 EID ACK 严格限制为精确两字节和 clear response `{0x80,0xC0}`；仍只在
+FC 明确读回 FR 时查询，且没有 setter。飞机直连和 RC 2 USB 两条人工 clear-wire GET 均未收到
+canonical ACK，因此只说明这两条实验 USB route 不成立，不能否定官方 private DJI Fly runtime
+route，也不能把静态 France EID 支持宣称为当前实机可用。
 
 要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
 [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、

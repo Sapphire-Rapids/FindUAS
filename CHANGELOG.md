@@ -17,6 +17,13 @@ stable releases begin.
 - Added strict, hardware-free DJI frame/CRC/route/sequence/command/payload checks and region-state
   reconciliation checks.
 
+### Fixed
+
+- Corrected the product-139 France-EID fixed read-only GET target from the older FLYC address
+  assumption `0x03` to the recovered static default `0x92`. Its validator now accepts only the
+  command-specific clear-response set `{0x80,0xC0}` and an exact two-byte successful canonical ACK;
+  no setter or generic DUML surface was added.
+
 ### Documentation
 
 - Defined the boundary and phased design for isolated Remote ID region-profile compatibility
@@ -56,10 +63,12 @@ stable releases begin.
   official subscription or state transition; this is not reported as lack of RID support or as an
   RF result.
 - Rejected installation of a third-party approximately 52 MB multi-capability APK and documented
-  the independent minimal `com.finduas.ridobserver` replacement: default-off manual Start/Stop,
-  one input-only `127.0.0.1:40007` session, no write/reconnect/boot/persistence, de-identified
-  statuses only, exactly four manifest permissions, a roughly 2.3 MB debug APK, and 9/9 passing
-  protocol and safety tests. Its source and APK remain work-only and outside this repository.
+  the independent minimal `com.finduas.ridobserver` replacement. Its current v0.4 remains
+  default-off/manual/input-only, observes one fixed `40007` or `40009` session, has no request
+  builder/output stream/write/reconnect/boot/persistence, and adds strict same-epoch query/ACK
+  correlation plus separate privacy-only type-6 and France-EID lanes. It retains exactly four
+  manifest permissions; 44/44 observer, 31/31 wire-codec, and 20/20 type-6-parser tests pass. Its
+  source and APK remain work-only and outside this repository.
 - Recorded that the ADB host opens the RC 2 endpoints and sends `CNXN`, but receives neither
   `AUTH` nor `CNXN` and stays offline across two platform-tools versions and both tested host
   backends. No shell or ADB installation was used. USB parentage showed both visible storage LUNs
@@ -67,9 +76,10 @@ stable releases begin.
   match, and the RC 2 microSD was not exposed through that USB configuration. A separately resolved
   removable card was explicitly authorized for MBR/ExFAT formatting, received the sole APK with a
   matching source/destination hash, passed read-only ExFAT verification, and was safely ejected.
-  RC 2 nevertheless offered only native reformat rather than browse for that Mac-created volume;
-  the next bounded path is RC-native format followed by an APK-only copy. Visible installation and
-  post-install verification remain pending.
+  RC 2 initially offered only native reformat rather than browse for that Mac-created volume.
+  After RC-native storage setup, the user successfully installed the signed PackageInstaller and
+  FileManager helpers plus an earlier observer build. The reviewed v0.4 update still awaits the
+  same manual overwrite-install/runtime check; ADB remains offline and was not used.
 - Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
   former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
   runtime parser disagree on the F8 prefix; current DJI Fly 1.21.10 native code resolves its build

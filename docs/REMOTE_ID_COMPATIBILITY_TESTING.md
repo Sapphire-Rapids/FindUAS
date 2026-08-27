@@ -24,12 +24,12 @@ work.
 | Proposed control | Evidence and meaning | Product decision |
 | --- | --- | --- |
 | Disable ordinary aircraft Remote ID | No public generic DJI switch was found; US and current Chinese requirements explicitly prevent an ordinary operator disable control | Do not implement |
-| French Electronic ID switch | Native FLYC `0x03/0x77` is recovered for the supported-product French EID setting; the current CN product returned no matching GET response | Report current state as unavailable and keep it research-only; it is not generic RID |
+| French Electronic ID switch | Product-139 native FLYC `0x03/0x77` is exact: GET `[02]`, SET `[00]/[01]`, static default receiver `0x92`, GET ACK `[result,state]`, SET ACK `[result]`; two artificial direct-USB GET routes returned no canonical ACK | Report those routes as unavailable and keep it research-only; require an official private-runtime GET/ACK and never call it generic RID |
 | DJI MSDK area strategy | Selects a regional SDK delegate for development; it is not proof of changing the aircraft's true region or over-the-air format | Investigate only in a separate, supported MSDK test app |
 | FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
-| EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`) and BoolMsg config handlers; business logic owns it from cloud country membership plus C0 certification | Observation-only; converter type does not establish wire width, and this is not a user switch |
+| EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`), type 0 and width 1; business logic owns it from cloud country membership plus C0 certification, while both current F7 routes returned status `03` rather than metadata | Observation-only; no F8 snapshot/rollback target or RF semantics exist, so F9 is a hard do-not-send and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
-| RC 2 localhost status observer | An independent minimal Android app can make one input-only connection to `127.0.0.1:40007` and retain only strict, de-identified RID/FlySafe statuses | Work-only readback aid, default OFF and awaiting manual RC 2 installation/verification; it has no writer, reconnect, persistence, or switch semantics and does not enter this repository |
+| RC 2 localhost status observer | Independent v0.4 can make one input-only connection to fixed `40007` or `40009`, correlate only strict same-epoch official traffic, and retain de-identified RID/FlySafe/type-6/France-EID summaries | Work-only readback aid; an earlier build was manually installed and v0.4 awaits overwrite/runtime verification. It has no request builder, writer, reconnect, persistence, or switch semantics and does not enter this repository |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -633,10 +633,10 @@ standard, contents, timing, or RF power.
 4. Specify and implement a capability-gated external source adapter, then validate its hardware
    identity, firmware, encoder, transport, RF interlock, lease, stop, rollback, and independent
    measurement in a controlled laboratory before enabling real transmission.
-5. If DJI SDK strategy or French EID behavior is still useful, use a separate experiment on an
-   explicitly supported product/region. Require a successful `0x03/0x77` GET before treating EID
-   as available, and compare SDK state, every affected area surface, and independent RF reception.
-   Do not fold it into FindUAS and do not substitute guessed native writes.
+5. If DJI SDK strategy or French EID behavior is still useful, first use v0.4 input-only `40009`
+   observation during DJI Fly's own lifecycle. Require a correlated official `0x03/0x77` GET/ACK
+   before treating EID as available, then compare SDK state, every affected area surface, and
+   independent RF reception. Do not substitute the two failed direct-USB routes or guessed writes.
 6. Keep the O4 FCC/CE area-code investigation separate from Remote ID profiles.
 7. Keep aircraft-firmware analysis separate from receiver compatibility. The verified `0802`
    boundary and next research steps are documented in

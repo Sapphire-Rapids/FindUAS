@@ -68,7 +68,13 @@ DJIUSBBridgeStatus dji_usb_bridge_get_ground_country(
     DJIUSBBridgeCountry *out_country
 );
 
-/** Fixed aircraft FLYC France EID status GET (command set/id 0x03/0x77). */
+/**
+ * Fixed product-139 France-EID status GET (0x03/0x77, body 0x02).
+ * Uses the recovered static-default target 0x92; runtime HostID overrides and
+ * the private DJI Fly route are not inferred or scanned. The implementation
+ * accepts only correlated clear response 0x80/0xC0 and an exact two-byte
+ * successful canonical body. It is not a generic RID query or setter.
+ */
 DJIUSBBridgeStatus dji_usb_bridge_get_france_eid_status(
     DJIUSBBridgeFranceEIDStatus *out_status
 );

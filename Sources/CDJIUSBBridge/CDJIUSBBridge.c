@@ -95,9 +95,11 @@ enum {
     DUML_MINIMUM_FRAME_LENGTH = 13,
     DUML_MAXIMUM_FRAME_LENGTH = 1023,
     DUML_REQUEST_WITH_ACK = 0x40,
-    /* A response has packet-type bit 7 set and no acknowledgement request.
-     * Live Mini 5 Pro/RC 2 GET replies use exactly 0x80. */
+    /* Fixed country/area GET replies observed on this pair use 0x80. The
+     * strict local France-EID matcher admits the clear closed set 0x80/0xC0;
+     * which form the remote actually uses remains unobserved. */
     DUML_ACK_RESPONSE = 0x80,
+    DUML_ACK_AFTER_EXEC_RESPONSE = 0xC0,
     DUML_FC_AREA_GET_CODE = 0x04,
     USB_WRITE_TIMEOUT_MS = 1000,
     USB_READ_SLICE_MS = 250,
@@ -233,7 +235,7 @@ static int fixed_query_spec(FixedQueryKind kind, FixedQuerySpec *out_spec) {
                 .endpoint_out = 0x04,
                 .endpoint_in = 0x85,
                 .source = 0x0A,
-                .target = 0x03,
+                .target = 0x92,
                 .command_set = 0x03,
                 .command_id = 0x77,
                 .request_payload = kFranceEIDGetPayload,
@@ -328,8 +330,11 @@ static int validate_fixed_response(
         return 0;
     }
 
+    const int response_type_allowed = frame[8] == DUML_ACK_RESPONSE ||
+        (kind == FIXED_QUERY_FRANCE_EID_STATUS &&
+         frame[8] == DUML_ACK_AFTER_EXEC_RESPONSE);
     if (frame[4] != spec.target || frame[5] != spec.source ||
-        read_u16_le(frame + 6) != sequence || frame[8] != DUML_ACK_RESPONSE ||
+        read_u16_le(frame + 6) != sequence || !response_type_allowed ||
         frame[9] != spec.command_set || frame[10] != spec.command_id) {
         return 0;
     }
@@ -816,7 +821,8 @@ static int parse_france_eid_payload(
     size_t payload_length,
     DJIUSBBridgeFranceEIDStatus *out_status
 ) {
-    if (payload == NULL || out_status == NULL || payload_length < 2 || payload[0] != 0) {
+    if (payload == NULL || out_status == NULL || payload_length != 2 ||
+        payload[0] != 0) {
         return 0;
     }
     out_status->enabled = (payload[1] & 0x01U) != 0U ? 1 : 0;
@@ -991,8 +997,8 @@ uint8_t dji_usb_bridge_protocol_self_test(void) {
             0x40, 0x07, 0x19, 0xA1, 0x34
         },
         {
-            0x55, 0x0E, 0x04, 0x66, 0x0A, 0x03, 0x34, 0x12,
-            0x40, 0x03, 0x77, 0x02, 0x80, 0xCD
+            0x55, 0x0E, 0x04, 0x66, 0x0A, 0x92, 0x34, 0x12,
+            0x40, 0x03, 0x77, 0x02, 0x81, 0x61
         }
     };
     static const size_t expected_request_lengths[4] = {22, 13, 13, 14};
@@ -1010,8 +1016,12 @@ uint8_t dji_usb_bridge_protocol_self_test(void) {
         0x80, 0x07, 0x19, 0x00, 0x43, 0x4E, 0x00, 0x05, 0x75
     };
     static const uint8_t france_eid_response[] = {
-        0x55, 0x0F, 0x04, 0xA2, 0x03, 0x0A, 0x34, 0x12,
-        0x80, 0x03, 0x77, 0x00, 0x01, 0xFB, 0xB5
+        0x55, 0x0F, 0x04, 0xA2, 0x92, 0x0A, 0x34, 0x12,
+        0x80, 0x03, 0x77, 0x00, 0x01, 0x45, 0xC3
+    };
+    static const uint8_t france_eid_c0_response[] = {
+        0x55, 0x0F, 0x04, 0xA2, 0x92, 0x0A, 0x34, 0x12,
+        0xC0, 0x03, 0x77, 0x00, 0x01, 0x67, 0x02
     };
 
     if (duml_crc8(expected_requests[0], 3) != 0xFC ||
@@ -1057,7 +1067,7 @@ uint8_t dji_usb_bridge_protocol_self_test(void) {
              (payload_length != 9 || read_u64_le(payload + 1) != 156)) ||
             (kind == FIXED_QUERY_SKY_COUNTRY && payload_length != 4) ||
             (kind == FIXED_QUERY_GROUND_COUNTRY && payload_length != 4) ||
-            (kind == FIXED_QUERY_FRANCE_EID_STATUS && payload_length < 2)) {
+            (kind == FIXED_QUERY_FRANCE_EID_STATUS && payload_length != 2)) {
             return 0;
         }
     }
@@ -1083,6 +1093,76 @@ uint8_t dji_usb_bridge_protocol_self_test(void) {
             sizeof(france_eid_response) - DUML_MINIMUM_FRAME_LENGTH,
             &france_eid_status
         ) || france_eid_status.enabled != 1) {
+        return 0;
+    }
+    static const uint8_t eid_short[] = {0x00};
+    static const uint8_t eid_tail[] = {0x00, 0x01, 0x00};
+    static const uint8_t eid_nonzero_result[] = {0x01, 0x01};
+    static const uint8_t eid_reserved_state_bits[] = {0x00, 0x02};
+    static const uint8_t eid_enabled_with_reserved_bits[] = {0x00, 0x03};
+    if (parse_france_eid_payload(eid_short, sizeof(eid_short), &france_eid_status) ||
+        parse_france_eid_payload(eid_tail, sizeof(eid_tail), &france_eid_status) ||
+        parse_france_eid_payload(
+            eid_nonzero_result, sizeof(eid_nonzero_result), &france_eid_status
+        )) {
+        return 0;
+    }
+    if (!parse_france_eid_payload(
+            eid_reserved_state_bits, sizeof(eid_reserved_state_bits), &france_eid_status
+        ) || france_eid_status.enabled != 0 ||
+        !parse_france_eid_payload(
+            eid_enabled_with_reserved_bits,
+            sizeof(eid_enabled_with_reserved_bits),
+            &france_eid_status
+        ) || france_eid_status.enabled != 1) {
+        return 0;
+    }
+
+    const uint8_t *eid_payload = NULL;
+    size_t eid_payload_length = 0;
+    if (!validate_fixed_response(
+            FIXED_QUERY_FRANCE_EID_STATUS, 0x1234,
+            france_eid_c0_response, sizeof(france_eid_c0_response),
+            &eid_payload, &eid_payload_length
+        ) || eid_payload_length != 2) {
+        return 0;
+    }
+
+    uint8_t eid_variant[sizeof(france_eid_response)];
+    memcpy(eid_variant, france_eid_response, sizeof(eid_variant));
+    eid_variant[8] = 0xA0;
+    repair_frame_checksums(eid_variant, sizeof(eid_variant));
+    if (validate_fixed_response(
+            FIXED_QUERY_FRANCE_EID_STATUS, 0x1234,
+            eid_variant, sizeof(eid_variant), &eid_payload, &eid_payload_length
+        )) {
+        return 0;
+    }
+    eid_variant[8] = DUML_REQUEST_WITH_ACK;
+    repair_frame_checksums(eid_variant, sizeof(eid_variant));
+    if (validate_fixed_response(
+            FIXED_QUERY_FRANCE_EID_STATUS, 0x1234,
+            eid_variant, sizeof(eid_variant), &eid_payload, &eid_payload_length
+        )) {
+        return 0;
+    }
+
+    uint8_t fc_c0_variant[sizeof(fc_response)];
+    memcpy(fc_c0_variant, fc_response, sizeof(fc_c0_variant));
+    fc_c0_variant[8] = DUML_ACK_AFTER_EXEC_RESPONSE;
+    repair_frame_checksums(fc_c0_variant, sizeof(fc_c0_variant));
+    if (validate_fixed_response(
+            FIXED_QUERY_FC_AREA, 0x1234,
+            fc_c0_variant, sizeof(fc_c0_variant), &eid_payload, &eid_payload_length
+        )) {
+        return 0;
+    }
+    eid_variant[8] = 0xE0;
+    repair_frame_checksums(eid_variant, sizeof(eid_variant));
+    if (validate_fixed_response(
+            FIXED_QUERY_FRANCE_EID_STATUS, 0x1234,
+            eid_variant, sizeof(eid_variant), &eid_payload, &eid_payload_length
+        )) {
         return 0;
     }
 

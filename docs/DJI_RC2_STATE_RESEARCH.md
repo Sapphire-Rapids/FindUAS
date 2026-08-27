@@ -177,6 +177,12 @@ ID `0x77`. Its one-byte request payloads are:
 | Set EID off | `0x00` |
 | Set EID on | `0x01` |
 
+Current DJI Fly 1.21.10 address-level analysis further closes the product-139 path: the final
+effective registration is the UAV139 free `EIDSwitchGet/Set` handler pair, while the UAV77 entries
+are duplicate fallback. The request constructor's static default receiver is type 18/index 4
+(`0x92`), sender type is 2 with a runtime sender index, timeout is 500 ms, and retry count is 0.
+A runtime single-HostID Characteristics override can still replace the static receiver.
+
 For a matching response, byte 0 is the command status and bit 0 of byte 1 is the reported EID
 state. A set operation is not verified by its acknowledgement alone: it must be followed by the
 `0x02` read and an explicit state comparison. Missing, short, mismatched, or unsuccessful
@@ -187,11 +193,15 @@ This command is specifically the supported-product French Electronic ID switch b
 not be mapped to FAA Remote ID, the general EU direct-identification path, Japan, China, or a
 global aircraft RID control.
 
-On 2026-08-27, while the current aircraft reported the CN area, a direct-aircraft, read-only
-`0x03/0x77` request with payload `0x02` produced no matching response. The only valid result for
-this product/region state is therefore `unavailable`; it is not evidence that EID is off. No
-`0x00` or `0x01` request was sent, and writes remain prohibited unless a matching successful GET
-first establishes support and a separate authorized procedure defines readback and rollback.
+The first 2026-08-27 direct-aircraft attempt used an older target assumption and is superseded as a
+route test. On 2026-08-28, after correcting the product-139 static default to `0x92`, exactly one
+read-only clear GET `[02]` was sent on each of two explicit experimental routes: aircraft direct USB
+and RC 2 USB. Neither returned a canonical CRC/sequence/reverse-route `0x03/0x77` ACK. The only valid
+result is `unavailable` on those two artificial routes; this is not evidence that EID is off,
+unsupported, or unreachable through DJI Fly's private in-process session. No `0x00` or `0x01`
+request was sent, there was no retry/address scan, and writes remain prohibited unless a matching
+official GET first establishes support, live route and baseline and a separate authorized procedure
+defines readback and restoration.
 
 ### Other development and authorized-exception paths
 
@@ -804,9 +814,10 @@ the remaining probes are read-only.
    or reconnect repeatedly.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-6. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
-   GET response before considering any authorized set/readback test. Keep aircraft/session binding
-   explicit and do not conflate this France-only EID surface with ordinary RID.
+6. Use the input-only RC 2 `40009` observer during DJI Fly's normal France-EID lifecycle to require
+   an official `KeyEIDSwitch` `0x03/0x77` GET and canonical ACK before considering any authorized
+   set/readback test. Keep aircraft/session binding explicit; the two direct-USB negative probes do
+   not prove the private route, and this France-only EID surface is not ordinary/global RID.
 7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
    [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext

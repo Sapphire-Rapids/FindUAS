@@ -90,10 +90,16 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
    between 5 and 15 minutes. Stop and lease expiry return to `complianceAuto`; `lockout` requires an
    explicit reset. Do not persist or automatically restore an armed/staged/active state.
 15. The DJI USB bridge is read-only and fixed: FC area GET is `0x03/0xAF`, Sky/Ground country GET is
-    `0x07/0x19`, and France EID GET is `0x03/0x77` with payload `0x02`. Do not add a generic DUML
-    entry point or setter to this target.
+    `0x07/0x19`, and product-139 France EID GET is `0x03/0x77` with payload `0x02` and recovered
+    static default target `0x92` (type 18/index 4). A runtime single-HostID override remains
+    possible; do not generalize or scan around a timeout. Do not add a generic DUML entry point or
+    setter to this target.
 16. A matching DJI reply must pass declared length/version, CRC8/CRC16, reverse route, sequence,
-    command set/id, and payload validation. Current valid replies use command type `0x80`.
+    command set/id, and payload validation. FC-area/country replies remain exact `0x80`; the scoped
+    France-EID matcher accepts only clear response `{0x80,0xC0}` and its canonical successful GET
+    body must be exactly `[0x00, state]`; follow the official converter and read enable as
+    `state & 1`. Reject `0xA0/0xE0`, tails, and nonzero results, but do not invent a reserved-bit
+    zero requirement absent from the official consumer.
 17. Current country GET replies are four bytes: zero prefix, two uppercase country bytes, zero
     reserved tail. Longer reserved tails are acceptable only when every extra byte is zero.
 18. France EID is queried by the app only when FC area has independently read back `FR`. A timeout,
@@ -191,14 +197,21 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     WA150 standard RID. It is not a control candidate.
 33. Keep two Android artifacts distinct. The rejected roughly 52 MB third-party clone APK bundled
     unrelated Auto-FCC/DUML behavior and broad boot/accessibility/package-install/log/Wi-Fi
-    capabilities; it was not installed and must stay out of this MIT repository. The new roughly
-    2.3 MB observer is independently written and observer-only: default OFF, manual Start/Stop, one
-    non-exported foreground-service session, fixed localhost `40007`, one connection attempt, no
-    output stream, primer/query/write, reconnect, boot/sticky start, or persistence. It requests
-    only Internet, foreground-service/data-sync, and notification permissions and exports only
-    de-identified typed status. Its focused tests pass 9/9, but installation/runtime validation is
-    a separate hardware step. Keep this work-only APK out of the repository and preserve the same
-    zero-write lifecycle/privacy constraints in any clean reimplementation.
+    capabilities; it was not installed and must stay out of this MIT repository. The independent
+    observer v0.4 is default OFF/manual/input-only and observes one fixed localhost `40007` or
+    `40009` session. It has no output stream, primer/query/request builder/write, reconnect,
+    boot/sticky start, or persistence. It requests only Internet, foreground-service/data-sync, and
+    notification permissions and exports only de-identified typed status. Its strict correlation,
+    epoch reset, type-6 privacy summary, and separate France-EID canary pass 44/44 observer tests;
+    the two read-only protocol modules add 31/31 and 20/20. Keep this work-only APK out of the
+    repository and preserve the same zero-write lifecycle/privacy constraints in any clean
+    reimplementation.
+34. Product-139 France EID and FlySafe type-6 are separate mechanisms. The exact France lane is
+    GET `[02]`, SET `[00]/[01]`, GET ACK `[result,state]`, SET ACK `[result]`, 500 ms and retry 0;
+    it is not FAA/global RID. Two fixed direct-USB clear GET routes returned no canonical ACK, so
+    the live private DJI Fly route/state is still unknown. The old `EU_CE_enable_c0_rid_0` hash
+    parameter is an app-owned EU/CE/C0 policy input; current F7 status `03` provides no metadata,
+    snapshot, or rollback target, so F9 must not be sent.
 
 ## Concurrency and state ownership
 
