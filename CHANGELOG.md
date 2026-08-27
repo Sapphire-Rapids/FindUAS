@@ -5,10 +5,44 @@ stable releases begin.
 
 ## Unreleased
 
+### Added
+
+- Added the “Compatibility Lab” administrator safety preview with versioned validation profiles,
+  a staged broadcast intent, five explicit prechecks, a 5–15 minute lease,
+  staged/local-dry-run/rollback states, and a bounded in-memory redacted audit log.
+- Added read-only lab status for the receiver plus a fixed DJI USB observer for device presence,
+  FC area, Sky/Ground country, and the France-only EID state when the FC area is FR. A generic
+  Remote ID switch is intentionally absent; France EID has no setter; region writes are not
+  implemented in the app.
+- Added strict, hardware-free DJI frame/CRC/route/sequence/command/payload checks and region-state
+  reconciliation checks.
+
 ### Documentation
 
 - Defined the boundary and phased design for isolated Remote ID region-profile compatibility
   testing, distinct from aircraft broadcast, regulatory-area, and RF-power controls.
+- Recorded that USB visibility of the current DJI Mini 5 Pro / DJI RC 2 pair is not an official
+  MSDK 5.18.0 control path, and documented the interlocks required by a future external
+  OpenDroneID-based laboratory source adapter.
+- Recorded the live read-only FC/Sky/Ground `CN` snapshot, unavailable France EID result, bounded
+  FC and Sky `CN -> US -> CN` research round trips, and the single Ground request that produced no
+  matching ACK and left readback at CN. These are not described as a complete region, Remote ID,
+  channel, or RF-power change.
+- Documented the DJI Assistant 2 `wa150`/`rc331` package inventory, the `0802` main-system and
+  `2603` GNSS module evidence, the PRAK/STUE trust boundary, and a deliberately non-flashable
+  integrity experiment. No firmware binary, downloader, upgrader, or Remote ID patch is included.
+
+### Security and privacy
+
+- The laboratory backend is explicitly no-RF and no-device-write: profile selection and “start”
+  change local memory only, never aircraft, controller, receiver, country-code, channel-plan, or
+  RF-power state.
+- The DJI bridge exports no raw command or setter API, reads no USB strings, and rejects replies
+  that fail length, CRC, reverse-route, sequence, command, or fixed-payload checks.
+- The app bundle does not currently include libusb; the optional DJI observer requires a compatible
+  external `libusb-1.0` and otherwise reports unavailable without affecting receiver features.
+- Lab audit entries are typed, bounded, non-persistent, and exclude raw packets, device/aircraft
+  identifiers, coordinates, credentials, and private operator-registration data.
 
 ## 0.1.0 - 2026-08-27
 

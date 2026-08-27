@@ -9,22 +9,123 @@ This note answers two related but materially different questions:
 
 The short answer is **no** to a general aircraft-broadcast switch and **yes** to an isolated,
 offline compatibility-test mode. A test profile must never be presented as changing the aircraft,
-remote controller, receiver, radio country code, channel plan, or transmit power.
+remote controller, receiver, radio country code, channel plan, or transmit power. A separate
+2026-08-27 research harness verified reversible FC-area and Sky-country transactions. Its single
+Ground request had no matching ACK and the next GET remained CN. Those narrow hardware results are
+not capabilities of the FindUAS application and are not a Remote ID or complete-region switch.
 
-This document records research and an implementation boundary. The proposed test mode has not yet
-been implemented.
+This document records research and an implementation boundary. The application now implements the
+fail-closed **control-plane safety preview** described below. It is a local dry run only: the
+per-frame evidence validator, synthetic replay pipeline, and real RF source adapter remain future
+work.
 
 ## Decision summary
 
 | Proposed control | Evidence and meaning | Product decision |
 | --- | --- | --- |
 | Disable ordinary aircraft Remote ID | No public generic DJI switch was found; US and current Chinese requirements explicitly prevent an ordinary operator disable control | Do not implement |
-| French Electronic ID switch | DJI exposes a writable French EID setting on supported products | Keep as research context; do not expose through FindUAS |
+| French Electronic ID switch | Native FLYC `0x03/0x77` is recovered for the supported-product French EID setting; the current CN product returned no matching GET response | Report current state as unavailable and keep it research-only; it is not generic RID |
 | DJI MSDK area strategy | Selects a regional SDK delegate for development; it is not proof of changing the aircraft's true region or over-the-air format | Investigate only in a separate, supported MSDK test app |
 | FlySafe `RID_UNLOCK` | An official managed license type; a retained, stubbed delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Never represent as a local toggle or reproduce its authorization path |
-| FindUAS compatibility-test switch | Starts/stops a synthetic or captured-data replay pipeline that does not touch hardware | Recommended |
-| FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Recommended, labelled “does not change device region” |
+| FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
+| FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
+| FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
 | Real receiver RF compatibility test | Requires a standards-compliant source and controlled RF setup | Separate lab phase, not an aircraft country-code change |
+
+## Implemented administrator safety preview
+
+The Simplified Chinese sidebar entry is **兼容性实验室** and the page title is
+**管理员实验室（安全预览）**. The fixed user-facing boundary is
+“不发射无线电 · 不写飞机 / 遥控器 / 接收器”. The only enabled actions stage a rehearsal, start a
+local-only dry run, and stop and roll back. They mutate in-memory state only.
+
+The pure-core model is intentionally small and fail-closed:
+
+- `RIDLabProfile` has ten metadata-only cases: `raw`, `usStandard`, `usModule`, `euIntegrated`,
+  `euAddOn`, `japan`, `china`, `uk`, `singapore`, and `franceEID`;
+- `RIDLabPhase` follows `complianceAuto -> precheck -> staged -> activeDryRun`, then `rollback`
+  back to `complianceAuto`; a fault enters `lockout` and requires an explicit reset;
+- `RIDLabBroadcastIntent` records `silent` or `broadcast` as a future-source scenario input. Even
+  `broadcast` is inert with the current backend and does not switch an aircraft or emit RF;
+- `RIDLabSession` owns the selected profile, all five checklist states, a lease between 5 and
+  15 minutes, expiration, and a bounded audit-event list;
+- entering `activeDryRun` requires every checklist item and a valid lease; stop or expiration
+  returns to `complianceAuto`, and armed state is not persisted across relaunches;
+- audit events are typed phase/profile/broadcast-intent/checklist/lease records only. They are
+  memory-only and have no free text, identifiers, coordinates, packets, credentials, keys, or
+  registration secrets.
+
+The current source capability is fixed to `RIDLabSourceCapability.noRFBackend`:
+
+| Capability | Value |
+| --- | --- |
+| Local dry-run state machine | yes |
+| Transmit Remote ID | no |
+| Write aircraft/controller/receiver | no |
+| Change device region | no |
+
+The DJI aircraft/controller card keeps its Remote ID and region **write** controls locked. It also
+offers an explicit refresh of a fixed read-only USB observer: device presence, FC area, Sky/Ground
+country, and France EID only when FC independently reads FR. The bridge has no raw-command or
+setter API. The receiver card shows read-only application/session diagnostics: connection,
+live-target and FF01/assembled/decoded/rejected counts, and the detected FF01 wrapper. Neither card
+creates a device-write, network, or RF control transport.
+
+### Current DJI hardware boundary
+
+On 2026-08-27, macOS enumeration showed the product names **DJI Mini 5 Pro** and **DJI RC 2** over
+USB; no serial numbers or other persistent identifiers are recorded here. DJI's official MSDK
+5.18.0 supported-product list does not include that aircraft/controller pair. USB visibility
+therefore does not establish a supported MSDK control session, and FindUAS leaves the two controls
+locked.
+
+A separate, explicitly authorized research harness first performed a controlled FC-area
+`CN -> US -> CN` transaction with matching ACKs and fresh readback after each write. A later
+surface-specific run required two CN preflight GETs per airlink route. Sky completed one
+`CN -> US -> CN` loop with matching ACKs and fresh GETs at US and CN. Ground transmitted one US
+request without a matching ACK; the following GET remained CN, so the harness sent no restore SET
+and did not retry. This is one FC loop, one Sky loop, and one inconclusive Ground attempt with no
+observable or durable applied state—not a synchronized region switch. RC/DJI Fly policy remained unavailable/unknown, and no
+Remote ID, EID, SDR-power, account, flight-limit, or receiver setting was written.
+
+The external FindUAS receiver was offline during those experiments. No conclusion can therefore be
+drawn about actual Remote ID transmission, regional packet format, transport, or RF reception.
+
+An independent probe linked against the same fixed C bridge used by the app subsequently reproduced
+the final read-only vector twice: FC=`CN`, Sky=`CN`, Ground=`CN`, RC/DJI Fly policy unavailable. Because
+the UI observer gates the EID query on FC=`FR`, it will not send that request in this CN state; the
+separate CN-state EID probe had already shown the request as unavailable. This distinction prevents
+both unnecessary queries and the unsafe UI inference “no response = off”.
+
+### Why a self-written switch must control an external source
+
+DJI's official MSDK 5.18 [`IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
+has no general Broadcast Remote ID enable/disable setter. Its broadcast-enabled and working-state
+values are read-only status. The only public boolean transmitter control is the separately scoped
+French EID function `setElectronicIDEnabled()`. Area strategy, Sky/Ground country, managed
+`RID_UNLOCK`, and signal-quality cloud controls are not interchangeable with that function.
+
+The Mac's built-in radios also cannot be used as an honest standard transmitter through public
+APIs. Apple documents that
+[`CBPeripheralManager.startAdvertising`](https://developer.apple.com/documentation/corebluetooth/cbperipheralmanager/startadvertising%28_%3A%29)
+accepts only the local-name and service-UUID keys. It cannot provide the required Remote ID BLE
+service data or select Bluetooth 5 coded/extended advertising; public CoreWLAN does not expose raw
+Beacon vendor-IE or RID NAN injection either.
+
+A self-written implementation must therefore be an explicitly labelled **external laboratory
+transmitter**, preferably an ESP32-S3/C3 connected over USB. Its typed protocol must expose
+handshake, prepare, start, state, stop, and an actual-active transport mask; it must not expose raw
+radio, country, DJI, or arbitrary-device commands. Device firmware must stop BLE advertising,
+remove Wi-Fi Beacon Remote ID elements, stop NAN, and enforce a hardware watchdog and absolute
+lease. A STOP acknowledgement alone is insufficient: state readback plus an independent quiet
+observation window are required. Existing [ArduRemoteID](https://github.com/ArduPilot/ArduRemoteID)
+rate parameters do not by themselves establish that already-started BLE/Beacon transmissions have
+stopped.
+
+ArduRemoteID is GPL-2.0-or-later and must remain a separately licensed companion if reused. A clean
+firmware implementation can instead build on Apache-2.0
+[`opendroneid-core-c`](https://github.com/opendroneid/opendroneid-core-c) while preserving its license
+and notices. Neither option controls DJI's integrated transmitter.
 
 ## “Remote ID switch” is not one control
 
@@ -64,11 +165,33 @@ SettingRemoteIdSwitchViewModel
 
 `KeyEIDSwitch` is declared readable, writable, and listenable. The surrounding presence logic
 checks the French EID capability and area; the public DJI MSDK similarly exposes
-`setElectronicIDEnabled()` under the France strategy. It must not be generalized to FAA Remote ID,
-EU operator registration, Japanese registration, or Chinese operation identification.
+`setElectronicIDEnabled()` under the France strategy. The exact recovered MSDK 5.18 native mapping
+is FLYC command set `0x03`, command ID `0x77`:
 
-FindUAS is a BLE client for the external receiver and has no supported DJI aircraft control path,
-so this setting does not belong in the FindUAS application.
+| Operation | One-byte request payload |
+| --- | --- |
+| GET EID state | `0x02` |
+| SET EID off | `0x00` |
+| SET EID on | `0x01` |
+
+In a matching response, byte 0 is status and bit 0 of byte 1 is the reported state. A SET must
+always be followed by the `0x02` GET and an explicit comparison; an acknowledgement alone is not
+state verification. Missing, short, mismatched, or unsuccessful responses are `unavailable`, not
+`off`.
+
+During the 2026-08-27 test, the current aircraft reported the CN area and a direct-aircraft,
+read-only GET (`0x02`) produced no matching response. Its French EID state can therefore only be
+reported as **unavailable** in the current product/region state. No OFF or ON request was sent, and
+neither is allowed without a successful capability GET plus a separately authorized readback and
+rollback procedure.
+
+This narrow switch must not be generalized to FAA Remote ID, ordinary EU direct identification,
+EU operator registration, Japanese registration, Chinese operation identification, or a global
+RID control.
+
+FindUAS is a BLE client for the external receiver and has no supported DJI aircraft control path.
+The narrowly labelled, FR-gated fixed GET may remain as experimental read-only status; an EID
+setter and any mapping from French EID to a generic Remote ID switch do not belong in the app.
 
 ### DJI's area strategy is a development policy selector
 
@@ -110,9 +233,13 @@ Sky/Ground radio, and in some products Wi-Fi area-code keys.
 Another internal preference, `debug_area_code_switch`, only gates part of this synchronization; it
 is not itself a country selector and does not consistently isolate the flight controller.
 
-This is strong evidence that DJI can perform an internal real-area experiment. It is a poor
-Remote ID compatibility control for an external test tool because it crosses multiple regulatory
-surfaces at once:
+This is strong evidence that DJI can perform an internal real-area experiment. The bounded
+2026-08-27 hardware checks independently verified the FC-area and Sky-country setters and their
+restoration; the Ground request did not obtain a matching ACK or change the following CN readback.
+They did not activate this DJI Fly preference or synchronize FC, Sky, Ground, or RC policy as one
+transaction. The mechanism
+remains a poor Remote ID compatibility control for an external test tool because it crosses
+multiple regulatory surfaces at once:
 
 - flight-controller area and FlySafe policy;
 - Remote ID regional behavior and registration flows;
@@ -120,10 +247,10 @@ surfaces at once:
 - cached and continuously synchronized state, with retry behavior on failed writes.
 
 It has no supported production UI, its native update rules are not fully recovered, and changing
-it would not by itself prove which Remote ID packets were emitted. This path should remain a
-read-only research finding unless a separate, authorized laboratory protocol defines exact
-readback, isolation, restoration, and independent RF measurement. It must not be implemented in
-FindUAS.
+the FC field did not by itself prove which Remote ID packets were emitted. Broader synchronized
+writes remain prohibited unless a separate, authorized laboratory protocol defines each surface,
+exact readback, isolation, restoration, and independent RF measurement. This path must not be
+implemented in FindUAS.
 
 ### `RID_UNLOCK` is a managed license, with unverified runtime behavior
 
@@ -152,22 +279,23 @@ and does not configure BLE advertising support. FF03 remains unknown and must no
 
 ## Versioned validation profiles
 
-The first implementation should use explicit profiles rather than informal country names:
+The safety preview uses explicit enum cases rather than executable country settings:
 
-- `rawReceiverOutput`
-- `usPart89Standard`
-- `usPart89BroadcastModule`
-- `eu2019_945Integrated`
-- `eu2019_945Addon`
-- `jpMLITDirectRID2022`
-- `cnGB46750_2025`
-- `ukCAA2026`
-- `sgCAAS_AS10`
+- `raw` — receiver output without a jurisdiction verdict;
+- `usStandard` — US Standard Remote ID aircraft semantics;
+- `usModule` — US broadcast-module semantics;
+- `euIntegrated` and `euAddOn` — EU integrated and add-on categories;
+- `franceEID` — the narrow French EID validation context, not the `KeyEIDSwitch`;
+- `japan` — Japanese direct Remote ID semantics;
+- `china` — GB 46750—2025 broadcast-side semantics;
+- `uk` — the UK public-broadcast data surface;
+- `singapore` — Singapore AS-10 semantics.
 
 Profiles are read-only data. They may contain the standard/version, device category, field
 requirements, one-of conditions, source URLs, review date, and a list of properties that the
 receiver output cannot establish. They must not contain a country-code write, frequency, power,
-DUML command, GATT command, or executable callback.
+DUML command, GATT command, or executable callback. Selecting one currently changes only the
+dry-run session's metadata; it does not yet produce a compliance verdict or any packet.
 
 ### Profile differences that affect the data model
 
@@ -218,6 +346,30 @@ The UI must never label this result “certified”, “compliant”, or “appr
 
 ## Safe compatibility-test architecture
 
+### Implemented no-RF control plane
+
+```text
+Administrator Lab UI
+       │ profile / inert broadcast intent / checklist / 5–15 minute lease
+       ▼
+RIDLabSession ──► bounded typed audit events (memory only)
+       │
+       └────────► noRFBackend
+                    supports dry run = yes
+                    transmit RID = no
+                    write device = no
+                    change region = no
+
+       ╳ BluetoothManager / USB / network / RecordStore / RF transmitter
+```
+
+This layer makes the operator workflow testable without pretending that an on-screen state is an
+over-the-air state. It is also the fail-closed contract a future external source adapter must meet;
+replacing the backend may add capability, but must not weaken the phase, lease, stop, rollback,
+lockout, privacy, or evidence requirements.
+
+### Planned evidence/replay plane
+
 ```text
 versioned synthetic fixture or redacted capture
           │ timed FF01 notification bytes
@@ -230,17 +382,25 @@ isolated assembler → TelemetryDecoder
                    Compatibility Test view (SIMULATED / REPLAY watermark)
 ```
 
-The test controller must own its own framing/session state. Evidence must be created from each raw
-decoded frame **before** `TelemetrySession`-style target merging and then evaluated in an explicit
-observation window; it must never be reconstructed from `activeTargets`. The controller must not
-publish into the live `BluetoothManager` or `AppState` path, because that path can alert, merge with
-real targets, and persist history through `RecordStore`.
+The later replay controller must own its own framing/session state. Evidence must be created from
+each raw decoded frame **before** `TelemetrySession`-style target merging and then evaluated in an
+explicit observation window; it must never be reconstructed from `activeTargets`. The controller
+must not publish into the live `BluetoothManager` or `AppState` path, because that path can alert,
+merge with real targets, and persist history through `RecordStore`.
 
-### User-visible behavior
+### Current safety-preview behavior
 
-- Put the control in a separate **Compatibility Test** view, not ordinary receiver settings.
-- Default it to off and do not restore “on” after relaunch.
-- Label the profile selector “validation profile — does not change device region”.
+- The control is in the separate **兼容性实验室** view, not ordinary receiver settings.
+- It defaults to `complianceAuto` and does not restore staged or active state after relaunch.
+- The profile selector says “验证配置文件不会改变设备地区”.
+- The broadcast-intent selector is only a staged expectation; it never claims to switch real RF.
+- The permanent banner says “不发射无线电 · 不写飞机 / 遥控器 / 接收器”.
+- All five checks and a 5–15 minute lease are required before the local dry run starts.
+- The available actions are stage rehearsal, start local-only rehearsal, and stop/rollback.
+- The DJI controls are locked and the receiver surface is read-only.
+
+### Requirements for the planned replay/source views
+
 - Show a permanent `SIMULATED` or `REPLAY` banner on every test target.
 - Disable sound, notification, whitelist, history, map mixing, exports that look like live flights,
   and every FF02/FF03 write.
@@ -271,6 +431,15 @@ not test CoreBluetooth discovery or the receiver's RF decoder.
 
 ## Test phases
 
+### Phase 0 — implemented control-plane safety preview
+
+Exercise every legal and illegal `RIDLabSession` transition, checklist combination, lease boundary,
+expiration, stop, rollback, lockout, reset, and bounded-audit case using the no-RF backend. Assert
+that no dry-run action reaches CoreBluetooth, the independent DJI USB observer, the network,
+`RecordStore`, or an RF source.
+
+This phase proves only that the operator-facing safety state machine fails closed.
+
 ### Phase 1 — deterministic offline replay
 
 Implement the isolated evidence model, profiles, validator, fixtures, and test view. Cover complete,
@@ -296,6 +465,13 @@ conducted setup, or qualified laboratory. OpenDroneID can seed ASTM/ASD-STAN tes
 contains a separate `libopendroneidcn` implementation for GB 46750; each generator still needs
 independent validation against the selected profile. Capture the external receiver's redacted FF01
 output and replay it through Phase 1.
+
+Potential hardware/software starting points include OpenDroneID's Linux and nRF transmitters and
+ESP-class ArduRemoteID implementations. None is automatically trusted. A source adapter must
+identify known hardware and firmware, declare its supported transports and encoders, require a
+physical RF interlock, inherit the short lease and immediate stop/timeout/rollback behavior, and
+fail closed on any mismatch. An independent receiver or analyzer—not the source's own status—must
+confirm what was emitted.
 
 For each profile and transport, record four separate results:
 
@@ -331,15 +507,24 @@ standard, contents, timing, or RF power.
 2. Extend the decoder evidence model before implementing any profile verdict.
 3. Confirm which over-the-air transports and raw message elements the receiver hardware actually
    supports; its FF01 JSON alone is insufficient.
-4. If DJI SDK strategy behavior is still useful, build a separate official-MSDK experiment and
-   compare SDK state, aircraft-reported area, and independent RF reception. Do not fold it into
-   FindUAS and do not substitute guessed native writes.
-5. Keep the O4 FCC/CE area-code investigation separate from Remote ID profiles.
+4. Specify and implement a capability-gated external source adapter, then validate its hardware
+   identity, firmware, encoder, transport, RF interlock, lease, stop, rollback, and independent
+   measurement in a controlled laboratory before enabling real transmission.
+5. If DJI SDK strategy or French EID behavior is still useful, use a separate experiment on an
+   explicitly supported product/region. Require a successful `0x03/0x77` GET before treating EID
+   as available, and compare SDK state, every affected area surface, and independent RF reception.
+   Do not fold it into FindUAS and do not substitute guessed native writes.
+6. Keep the O4 FCC/CE area-code investigation separate from Remote ID profiles.
+7. Keep aircraft-firmware analysis separate from receiver compatibility. The verified `0802`
+   boundary and next research steps are documented in
+   [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md); firmware self-report or a patched
+   local file is never a substitute for independent RF evidence.
 
 ## Sources
 
 - [DJI MSDK V5 `IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
 - [DJI MSDK V5 `IFlyZoneManager` and `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
+- [DJI MSDK 5.18.0 release notes and supported-product list](https://developer.dji.com/doc/mobile-sdk-tutorial/en/?pbc=D3IDBfR5&pm=custom)
 - [DJI MSDK V5 official sample](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
 - [FAA Remote ID overview](https://www.faa.gov/uas/getting_started/remote_id)
 - [14 CFR § 89.110](https://www.ecfr.gov/current/title-14/chapter-I/subchapter-F/part-89/subpart-B/section-89.110)
@@ -354,6 +539,9 @@ standard, contents, timing, or RF power.
 - [Singapore CAAS Broadcast Remote Identification Specification AS-10](https://www.caas.gov.sg/docs/default-source/default-document-library/as-10_broadcast-remote-identification.pdf)
 - [Singapore CAAS implementation announcement](https://www.caas.gov.sg/resources/media-and-publication/newsroom/broadcast-remote-identification-requirement-for-unmanned-aircraft-to-come-into-e/)
 - [OpenDroneID Core C](https://github.com/opendroneid/opendroneid-core-c)
+- [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)
+- [OpenDroneID nRF transmitter](https://github.com/opendroneid/transmitter-nrf)
+- [ArduPilot ArduRemoteID](https://github.com/ArduPilot/ArduRemoteID)
 - [Recovered DJI Fly EID UI path, pinned source](https://github.com/MAVProxyUser/SKYROVER_src/blob/8186e19241c913318b140bf37c5eafba005f1e7c/com/uav/component/fpv/widget/setting/ui/safety/remoteidentify/SettingRemoteIdSwitchViewModel.java)
 - [Recovered DJI Fly internal area-code path, pinned source](https://github.com/MAVProxyUser/SKYROVER_src/blob/8186e19241c913318b140bf37c5eafba005f1e7c/com/uav/service/areacode/AreaCodeServiceImpl.java)
 - [DJI MSDK V5.18.0 `aircraft-provided` artifact](https://repo1.maven.org/maven2/com/dji/dji-sdk-v5-aircraft-provided/5.18.0/dji-sdk-v5-aircraft-provided-5.18.0.jar)

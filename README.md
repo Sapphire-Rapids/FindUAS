@@ -9,7 +9,8 @@
 > [!IMPORTANT]
 > 本项目适用于 **FindUAS（[finduas.com](https://finduas.com)）配套的接收器设备**：蓝牙广播名为
 > `FindUAS Device` 或 `FindUAV Device`，并提供 GATT 服务 `00FF`。它不是 DJI、Autel 等无人机
-> 的直连客户端，也不是 FindUAS 官方软件。
+> 的受支持控制客户端，也不是 FindUAS 官方软件。“兼容性实验室”另含一组实验性的固定 DJI USB
+> 只读诊断；没有通用命令入口，也不能写飞机或遥控器。
 
 ## 下载
 
@@ -44,6 +45,7 @@ Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐�
 - 本地 JSONL 历史记录、白名单和新目标系统告警音；
 - 显示接收器电量、信道、驻留时间和告警开关；
 - 写入 FF02 前二次确认及输入范围校验；
+- 提供隔离的“兼容性实验室”安全预览，可演练验证档案、预检、短租约和回滚流程；
 - 不写入用途尚未确认的 `FF03`。
 
 ### 已知遥测字段
@@ -66,6 +68,9 @@ Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐�
 - 地图中的本机位置功能需要位置权限；
 - 构建需要 Xcode Command Line Tools 或完整 Xcode，以及 Swift 6 工具链。
 
+实验性的 DJI USB 只读诊断还需要可动态加载的 `libusb-1.0`（例如 `brew install libusb`）。缺少它
+不会影响 FindUAS 蓝牙接收器功能；DJI 卡片会明确显示“缺少 libusb 运行库”。
+
 ## 使用
 
 1. 打开应用并允许蓝牙访问。
@@ -76,6 +81,58 @@ Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐�
 
 接收器连上以后会按自身信道配置持续监听飞机的 Remote ID，不需要再点一次扫描。飞机是否开始
 广播 Remote ID 由飞机固件和运行状态决定；部分机型只在电机启动后广播。
+
+## 管理员实验室（安全预览）
+
+侧栏“兼容性实验室”中的页面标题为“管理员实验室（安全预览）”。它用于先把地区兼容性测试的
+操作流程、失败保护和审计边界做正确，**当前不是 Remote ID 发射器，也不是 DJI 调参工具**。
+页面始终显示：
+
+> 不发射无线电 · 不写飞机 / 遥控器 / 接收器
+
+演练动作只修改本机内存；DJI 卡片另有独立的固定 USB 只读状态：
+
+| 控件 | 实际效果 |
+| --- | --- |
+| 验证配置文件 | 选择字段与地区语义的只读测试元数据；不会改变设备地区 |
+| 播报意图 | 只记录未来信号源场景为“无信号”或“播报”；不会开关飞机或产生 RF |
+| 五项安全检查与 5–15 分钟租约 | 全部通过后才允许进入本机 dry-run；不是 RF 发射授权 |
+| 暂存演练 | 只推进本机状态机，不访问 USB、蓝牙或网络 |
+| 开始仅本机演练 | 启动有期限的内存态演练及脱敏审计；不会产生 Remote ID 广播 |
+| 停止并回滚 | 立即停止演练并回到自动合规状态；租约到期也会自动回滚 |
+| 读取 DJI 设备状态 | 固定 GET 读取设备存在、FC area、Sky/Ground country；FC 为 FR 时才读取法国 EID |
+| 通用 Remote ID 开关 | 本应用明确不实现：尚未发现并验证通用 setter，法国 EID 不能冒充 FAA/EU/JP/CN 的总开关 |
+| 法国 EID | 只有 FR-gated 固定状态 GET；没有 setter；不可用不等于关闭 |
+| 地区事务 | 尚未上线：独立研究工具已闭合 FC 与 Sky 的单次事务，Ground 请求未获 ACK；应用仍无 writer，也没有稳定设备对绑定 |
+| FindUAS 接收器卡片 | 只读显示连接、FF01/组帧/解码/拒绝计数、存活目标与包装模式 |
+
+2026-08-27 的实机只读结果为：飞机与 DJI RC 2 的已观测 VID/PID 路由均可见，FC area、Sky
+country、Ground country
+均为 `CN`，RC / DJI Fly policy 不可读；当前 FC 不是 `FR`，应用不会发送法国 EID 查询。独立研究
+探针在 CN 状态直接查询该窄 EID 命令时没有收到匹配响应，因此只能记作 `unavailable`，不能解释成
+“关闭”。DJI 官方
+[MSDK 5.18.0 支持产品列表](https://developer.dji.com/doc/mobile-sdk-tutorial/en/?pbc=D3IDBfR5&pm=custom)
+未列出这个组合。USB 中出现产品名称不等于建立了受支持的 MSDK 控制通道，因此应用不会用猜测的
+私有命令去写 Remote ID、地区、国家码或射频功率。
+
+该只读桥不读取 USB 字符串或序列号，`open_device_with_vid_pid` 只选择第一个匹配路由。因此这些
+读数不能充当稳定的飞机+遥控器设备对身份，更不能作为未来写入授权。
+
+同日另一个不属于 App 的一次性研究工具，在用户逐面明确授权后完成了 FC area 与 Sky country 的
+`CN→US→CN` 写入、ACK、GET 和恢复闭环。Ground 只发送一次 US 请求，未收到严格匹配 ACK，随后
+GET 仍为 `CN`，因此没有发送恢复写或重试。结束后连续两轮独立只读结果均为
+FC/Sky/Ground=`CN`。这些结果只验证协议状态，不证明 Remote ID、频道或 O4 发射功率发生变化，
+也没有放宽上面的应用边界。
+
+要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
+[OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、
+[OpenDroneID nRF transmitter](https://github.com/opendroneid/transmitter-nrf) 或
+[ArduRemoteID](https://github.com/ArduPilot/ArduRemoteID) 硬件。任何真实适配器都必须增加硬件身份/
+能力握手、物理 RF 联锁、短租约、急停与超时回滚，并在屏蔽箱、传导环境或获准实验室中用独立
+接收仪器确认实际发射内容。候选开源实现本身不等于已验证合规。
+
+设计细节与地区档案边界见
+[docs/REMOTE_ID_COMPATIBILITY_TESTING.md](docs/REMOTE_ID_COMPATIBILITY_TESTING.md)。
 
 ## 构建与检查
 
@@ -110,9 +167,11 @@ swift build -c release --product FindUAS
 
 ## 隐私与安全
 
-应用不包含账户、遥测上传或分析服务。历史记录仅写入本机的 Application Support 目录，但其中
-可能包含无人机和操作者的精确坐标，文件当前不加密。请只在你拥有或获准操作的接收器上使用，
-并遵守当地关于无线电、隐私和 Remote ID 数据的法律。
+应用不包含账户、遥测上传或分析服务。`telemetry.jsonl` 会把完整 `DroneTelemetry` 写入本机
+Application Support：可能包含 UAS/登记标识、接收器标识、厂商私有电话、飞机与操作者精确坐标
+及其他遥测；文件当前不加密、不自动轮转，也没有自动保留期限。白名单 UAS ID 另存于
+`UserDefaults`，直到用户移除或清理应用数据。请只在你拥有或获准操作的接收器上使用，并遵守当地
+关于无线电、隐私和 Remote ID 数据的法律。
 
 本软件不是飞行安全、避障、执法或身份认定系统。安全问题及敏感报告请参阅
 [SECURITY.md](SECURITY.md)。
@@ -123,12 +182,16 @@ swift build -c release --product FindUAS
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)：数据流、模块职责、持久化与扩展边界；
 - [docs/PROTOCOL.md](docs/PROTOCOL.md)：独立整理的 BLE 互操作说明；
 - [docs/DJI_RC2_STATE_RESEARCH.md](docs/DJI_RC2_STATE_RESEARCH.md)：DJI Fly/RC 2 对 Remote ID、
-  账号同步与运行时飞行限制状态的只读研究；不属于 FindUAS 产品集成；
+  账号同步、运行时飞行限制状态及明确授权的有界地区实验研究；不属于 FindUAS 产品能力；
 - [docs/DJI_RC2_RF_POWER_RESEARCH.md](docs/DJI_RC2_RF_POWER_RESEARCH.md)：DJI Fly/RC 2 的地区码、
-  FCC/CE 法规档案与 O4 射频功率控制面的只读研究；不包含可执行功率修改包；
+  FCC/CE 法规档案与 O4 射频功率控制面的以只读为主研究；记录的有界 country 事务不包含功率写入，
+  仓库也不提供可执行功率修改包；
+- [docs/DJI_RID_FIRMWARE_RESEARCH.md](docs/DJI_RID_FIRMWARE_RESEARCH.md)：`wa150`/`rc331` 的
+  Assistant 2 版本清单、`0802`/`2603` 模块判断、IMaH 信任边界和不可刷写完整性实验；不属于应用
+  功能，仓库不包含厂商固件、下载器、升级器或 Remote ID 关闭补丁；
 - [docs/REMOTE_ID_COMPATIBILITY_TESTING.md](docs/REMOTE_ID_COMPATIBILITY_TESTING.md)：Remote ID
-  开关、DJI 地区策略和各地区接收兼容性测试的边界与实现方案；建议的是隔离的离线验证档案，
-  不会改变飞机、遥控器、接收器的地区或发射状态；
+  开关、DJI 地区策略和各地区接收兼容性测试的边界、当前 no-RF 安全预览与外部受控信号源方案；
+  验证配置文件不会改变飞机、遥控器、接收器的地区或发射状态；
 - [CONTRIBUTING.md](CONTRIBUTING.md)：贡献与硬件报告流程；
 - [CHANGELOG.md](CHANGELOG.md)：用户可见变更。
 

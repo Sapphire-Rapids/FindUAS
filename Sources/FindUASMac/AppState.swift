@@ -10,6 +10,7 @@ final class AppState: ObservableObject {
         case map = "地图"
         case history = "历史记录"
         case devices = "设备"
+        case lab = "兼容性实验室"
         case settings = "设置"
 
         var id: String { rawValue }
@@ -19,6 +20,7 @@ final class AppState: ObservableObject {
             case .map: "map"
             case .history: "clock.arrow.circlepath"
             case .devices: "dot.radiowaves.left.and.right"
+            case .lab: "testtube.2"
             case .settings: "gearshape"
             }
         }
@@ -33,6 +35,8 @@ final class AppState: ObservableObject {
 
     let bluetooth = BluetoothManager()
     let records = RecordStore()
+    let ridLab = RIDLabController()
+    let djiUSB = DJIUSBReadOnlyMonitor()
     private var cancellables: Set<AnyCancellable> = []
     private var announcedUASIDs: Set<String> = []
 

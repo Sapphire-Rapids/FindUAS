@@ -11,12 +11,20 @@ let package = Package(
         .executable(name: "FindUASCoreChecks", targets: ["FindUASCoreChecks"])
     ],
     targets: [
+        .target(
+            name: "CDJIUSBBridge",
+            publicHeadersPath: "include"
+        ),
         .target(name: "FindUASCore"),
         .executableTarget(
             name: "FindUASMac",
-            dependencies: ["FindUASCore"]
+            dependencies: ["FindUASCore", "CDJIUSBBridge"]
         ),
-        .executableTarget(name: "FindUASCoreChecks", dependencies: ["FindUASCore"], path: "Checks")
+        .executableTarget(
+            name: "FindUASCoreChecks",
+            dependencies: ["FindUASCore", "CDJIUSBBridge"],
+            path: "Checks"
+        )
     ],
     swiftLanguageModes: [.v5]
 )

@@ -1,12 +1,15 @@
 # DJI RC 2 / O4 regulatory RF-power research
 
-This note records read-only research into the feature commonly called “FAA mode” in DJI
+This note records predominantly read-only research into the feature commonly called “FAA mode” in DJI
 communities. The accurate term is **FCC regulatory mode**: the FAA regulates flight operations,
 while DJI's own radio specifications distinguish FCC, CE, SRRC, and MIC limits.
 
-This is research context, not a FindUAS feature or a radio-modification guide. FindUAS connects to
-the external BLE Remote ID receiver; it does not configure DJI radios. No country code, RF state,
-channel, flight parameter, account, or aircraft setting was changed during this work.
+This is research context, not a radio-power modification guide. Explicitly authorized bounded
+experiments closed FC-area and Sky-country `CN -> US -> CN` loops. A single Ground US request had no
+matching ACK and the following GET remained CN, so the harness sent neither a restore SET nor a
+retry. Two final
+independent probes reported FC/Sky/Ground all CN. None of these experiments changed or measured an
+SDR power selector, channels, account state, flight limits, motors, Remote ID, or actual RF output.
 
 ## Result in one paragraph
 
@@ -14,7 +17,7 @@ The modern DJI Fly path is an area-code policy pipeline, not a single transmit-p
 Fly combines aircraft/controller or phone GNSS, MCC, IP, nearby-city, and cached inputs; publishes
 the selected code to the sky and ground Airlink keys; mirrors it to Wi-Fi on applicable products;
 and synchronizes a flight-controller area-code key. Native key-value code and the radio firmware
-then select the regulatory channel and power tables. Community RC 2 tools bypass the policy layer
+then select downstream regulatory behavior. Community RC 2 tools bypass the policy layer
 and replay DUML traffic through the controller's loopback proxy. Confirmed state writes and
 candidate components of that bypass include a country-code update, a flight-controller area-code
 update, and the legacy Sky SDR selector that DJI code literally calls `setForceFcc()`. The popular
@@ -71,9 +74,11 @@ Direct static evidence:
   mismatched FC update every two seconds.
 - The Airlink area-code keys are readable, writable, and observable. A separate action queries
   whether the target area code is supported.
-- The exact current-O4 mapping from those key names through `libsdk_jni` to DUML remains missing
-  from the available DEX-only corpus. Legacy command classes are supporting evidence, not proof
-  that current DJI Fly calls those classes directly.
+- DJI MSDK 5.18.0's arm64 native library maps the modern `GetFCAreaCode` and `SetFCAreaCode`
+  operations to FLYC `0x03/0xAF`. The fixed request is nine bytes: subcommand `0x04` plus eight
+  zero bytes for GET, or subcommand `0x03` plus the ISO-3166-1 numeric value as little-endian u64
+  for SET. The current native GET requires at least nine response bytes and reads the numeric code
+  at response offset 1.
 
 Primary reverse-source snapshot:
 
@@ -107,12 +112,17 @@ only installs the Android app; the loopback DUML transport is the control surfac
    `0x07/0x19` reads it back. Public RC 2 evidence shows one update changing a following readback
    from `RU` to `AU`. A legacy ten-byte DJI request carries 2.4 and 5 GHz slots, but the audited
    RC 2 handler consumes only the leading alpha-2 code and persists one vendor country slot, so
-   duplicate identical frames do not prove per-band writes.
-2. **Flight-controller area state.** The legacy `DataFlycGetSetProductConfig` class maps `AU` to
-   ISO numeric value 36 and uses FLYC `0x03/0xAF`, subcommand 3, for `SET_AREA_CODE`. The matching
-   frame in the community profile is therefore byte-exact evidence of an FC area-code update.
-   Modern `FlightControllerAreaCodeLogic` performs the same business operation through a KeyValue
-   key, but its current native opcode mapping is still inferred rather than recovered.
+   duplicate identical frames do not prove per-band writes. On the current aircraft Sky route, one
+   authorized US SET produced a matching ACK and fresh GET=US; one CN restore produced a matching
+   ACK and fresh GET=CN. On the RC 2 Ground route, one authorized US request produced no matching
+   ACK and the fresh GET remained CN, so no restore or retry was sent. The latter is inconclusive,
+   not a successful write and not proof of permanent non-support.
+2. **Flight-controller area state.** The legacy `DataFlycGetSetProductConfig` class and DJI MSDK
+   5.18.0 native code agree on FLYC `0x03/0xAF`: subcommand 3 sets and subcommand 4 gets a nine-byte
+   ISO-numeric area slot. On the connected Mini 5 Pro, a bounded `CN(156) -> US(840) -> CN(156)`
+   test produced a matching transport ACK and independent GET readback after each write. The
+   current DJI SET callback does not inspect an application payload, so ACK alone is insufficient;
+   the GET readback is mandatory. This proves only the FC surface in the current session.
 3. **Sky SDR FCC selector.** `DataOsdSetSdrAssitantWrite.setForceFcc()` selects Sky, CP_A7, byte
    data, address `0xFFFF0048`, and value `2`, then sends OSD/OFDM command `0x09/0x27`. One community
    frame matches this operation exactly. No current DJI Fly Java caller was found, so it is a
@@ -169,6 +179,44 @@ frequency-band state; whether current DJI Fly presents that state as “auto” 
 The legacy RC PowerMode GET (`0x06/0x21`) produced no response on either candidate RC 2 route. That
 is evidence that the old query path is not usable here; it is not evidence for CE or FCC state.
 
+## Bounded area/country hardware validation
+
+On 2026-08-27, after an explicit warning that an area change could affect regulatory, FlySafe,
+Remote ID, and link policy, the operator authorized a fixed one-shot experiment. The procedure
+was:
+
+```text
+FC GET -> CN / 156
+FC SET -> US / 840
+matching ACK + FC GET -> US / 840
+FC SET -> original CN / 156
+matching ACK + FC GET -> CN / 156
+independent final FC GET -> CN / 156
+```
+
+A later surface-specific authorization used a double-CN precondition and allowed at most one
+forward and one restore write per airlink surface:
+
+```text
+Sky GET, GET -> CN, CN
+Sky SET -> US; matching ACK + fresh GET -> US
+Sky SET -> CN; matching ACK + fresh GET -> CN
+
+Ground GET, GET -> CN, CN
+Ground SET -> US; no strictly matching ACK
+fresh Ground GET -> CN; no restore SET and no retry
+```
+
+No serial number, account, coordinate, or complete raw frame was retained. Two later independent
+read-only snapshots reported FC=CN, Sky=CN, Ground=CN; the candidate RC-local country route remained
+unavailable. The FindUAS receiver was offline, so the experiments produced no over-the-air Remote
+ID, channel, or RF-power evidence. Persistence across an aircraft power cycle is also unknown.
+
+The official native SET callback treats transport success plus a non-null response as success and
+does not compare the applied value. Therefore every implementation must use `SET -> independent
+GET`, never ACK-only success, and must reject unknown alpha-2 codes rather than inheriting the old
+Java implementation's unsafe US fallback.
+
 ## Verification ladder
 
 ```text
@@ -192,19 +240,23 @@ transmit-power readings.
 
 ## Open work
 
-1. Recover the current `AreaCodeFromSky`, `AreaCodeFromGround`, `CountryCode`, FC `AreaCode`, and
-   support-query registrations from matching `libsdk_jni`/KeyValue native libraries.
+1. Recover the current `AreaCodeFromSky`, `AreaCodeFromGround`, `CountryCode`, and support-query
+   registrations from matching `libsdk_jni`/KeyValue native libraries. The FC `AreaCode` mapping
+   itself is now confirmed.
 2. Recover the O4 meaning and ownership of selector value `5`, including reconnect and reboot
    fallback behavior.
-3. Separate country-only, FC-area-only, SDR-selector-only, and combined changes with passive
-   captures and readback. Do not replay opaque profile frames as the experiment baseline.
+3. Keep country-only, FC-area-only, SDR-selector-only, and combined changes separate. Sky country
+   is proven only for this fixed route/session. Recover the exact modern Ground route/context from
+   passive evidence before proposing another separately authorized test; do not treat the prior
+   timeout as permission to retry and do not replay opaque profile frames as the baseline.
 4. Determine the final authority and persistence boundary among ground, sky, flight-controller,
    Wi-Fi, and app policy state.
 5. Use calibrated RF equipment before making any claim about dBm or EIRP.
 
-The safest next experiment is passive: if an authorized operator independently chooses to toggle
-a third-party tool, capture loopback or USB traffic and compare only the read-only states above.
-This repository must not ship a power-modification profile or a blind keepalive loop.
+This repository must not ship a power-modification profile or a blind keepalive loop. A future
+region lab must snapshot every independently writable surface, journal the original values before
+the first write, write each forward value at most once, read it back, and restore in reverse order.
+If any read returns a third value, it must stop rather than fight DJI Fly's policy synchronizer.
 
 ## Scope across DJI generations
 
@@ -220,3 +272,7 @@ Research snapshots used for this note:
 - `danusha2345/SkylabFCCfree` tag `v1.5.50`, commit
   `aa024985bf1556ab9c3b12f3d0f2305f63b021f5`
 - `o-gs/dji-firmware-tools` at `195692263c2684cf1ddc4995f2736be6c0fb135e`
+- DJI MSDK 5.18.0 `dji-sdk-v5-aircraft-5.18.0.aar`, SHA-256
+  `b2d659c6caf7e8c3bdf672ceacebbcbb17d88d29309fa53f3e232bc26e9b6aa3`; extracted arm64
+  `libdjisdk_jni.so`, SHA-256
+  `27402f45c63bf6ea9e8d3a783fc1202b53631e0ee24cc18a938ba1e91629dbcf`

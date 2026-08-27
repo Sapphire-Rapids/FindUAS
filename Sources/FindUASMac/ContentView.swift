@@ -19,6 +19,7 @@ struct ContentView: View {
             case .map: DroneMapView()
             case .history: HistoryView()
             case .devices: DevicesView()
+            case .lab: AdminLabView()
             case .settings: SettingsView()
             }
         }

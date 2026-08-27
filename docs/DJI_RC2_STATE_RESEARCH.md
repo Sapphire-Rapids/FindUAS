@@ -1,15 +1,18 @@
 # DJI RC 2 / DJI Fly state research
 
-This note records independently recovered, read-only implementation details relevant to answering
-three questions:
+This note records independently recovered implementation details relevant to answering three
+questions. Most live checks were read-only; the explicitly authorized device-setting experiments
+were bounded FC-area and Sky/Ground country transactions described below:
 
 1. How does DJI Fly decide that Remote ID is working normally?
 2. How does DJI Fly decide that a DJI account is correctly logged in?
 3. How do configured height/distance values differ from the runtime 30/50 m account restriction?
 
-It is research context, not a FindUAS product feature. FindUAS connects to the external BLE
-receiver and reports what that receiver receives; it does not log in to DJI, control an aircraft,
-or replace an independent Remote ID receiver.
+This note is broader research context, not a FindUAS account, flight-limit, or aircraft-write
+feature. FindUAS connects to the external BLE receiver and reports what that receiver receives; its
+Compatibility Lab additionally exposes the fixed read-only FC/Sky/Ground and FR-gated EID GETs
+described below. It does not log in to DJI, write an aircraft, or replace an independent Remote ID
+receiver.
 
 The separate area-code, FCC/CE policy, and O4 RF-power investigation is in
 [`DJI_RC2_RF_POWER_RESEARCH.md`](DJI_RC2_RF_POWER_RESEARCH.md).
@@ -18,14 +21,17 @@ specified in [`REMOTE_ID_COMPATIBILITY_TESTING.md`](REMOTE_ID_COMPATIBILITY_TEST
 
 ## Evidence levels and scope
 
-- **Direct**: visible in DJI Fly/SDK bytecode or verified against the current RC 2 with read-only
-  traffic.
+- **Direct**: visible in DJI Fly/SDK bytecode or verified against the current hardware with
+  read-only traffic or the explicitly identified bounded area/country transactions.
 - **Corroborated**: static implementation and official DJI documentation agree.
 - **Unverified**: a native command or aircraft-firmware behavior still needs a redacted capture.
 
 No account token, UID, aircraft identifier, exact coordinate, extracted APK, or vendor binary is
-stored in this repository. No setting, account, binding, or Remote ID state was changed during this
-research.
+stored in this repository. No account, binding, Remote ID, EID, radio-power, flight-limit, or
+receiver setting was written. A separate research harness temporarily changed FC area and Sky
+country from CN to US and restored each to CN with matching ACK plus fresh readback. One authorized
+Ground US request was transmitted without a matching ACK; the fresh readback remained CN, so no
+restore write or retry was sent. Two final independent probes reported FC/Sky/Ground all CN.
 
 ## Remote ID: what “working” means inside DJI software
 
@@ -142,18 +148,50 @@ do exist have narrower scopes:
 | --- | --- | --- |
 | `setUASRemoteIDAreaStrategy()` | selects the MSDK regional delegate and feature interpretation | retained 5.18.0 logic checks the real area and rejects mismatches, with extra China restrictions |
 | internal Japanese registration SN mock | substitutes the SN sent to the Japanese registration web page in develop builds | does not write working status, PFST, or broadcast state |
-| French `EIDSwitch` | enables/disables the French EID standard on supported products | not the common FAA/EU/China/Japan RID broadcast control |
+| French `EIDSwitch` | enables/disables the French EID standard on supported products; its native `0x03/0x77` request format is now recovered | not the common FAA/EU/China/Japan RID broadcast control |
 | FlySafe `RID_UNLOCK` license | managed European or China license type | a retained, stubbed delegate branch suggests that a matching enabled license would produce `NO_BROADCAST` |
 | RID cloud-control V2 | selects region/product data and sends it to the flight controller | no direct working-state or broadcast override was found |
 | EU C0 coexistence policy | enables the C0 RID mode only for cloud-selected countries and C0 aircraft | automatic regulatory policy, not a user/debug override |
 | RID broadcast-effect policy | writes a product-specific signal bitmap/quality value | tunes broadcast behavior; bit semantics are not yet recovered |
+
+### Recovered French EID native request
+
+The MSDK 5.18 native mapping for the narrow French EID setting is FLYC command set `0x03`, command
+ID `0x77`. Its one-byte request payloads are:
+
+| Operation | Request payload |
+| --- | --- |
+| Read state | `0x02` |
+| Set EID off | `0x00` |
+| Set EID on | `0x01` |
+
+For a matching response, byte 0 is the command status and bit 0 of byte 1 is the reported EID
+state. A set operation is not verified by its acknowledgement alone: it must be followed by the
+`0x02` read and an explicit state comparison. Missing, short, mismatched, or unsuccessful
+responses mean **unavailable**, never `off`.
+
+This command is specifically the supported-product French Electronic ID switch behind
+`KeyEIDSwitch`/`setElectronicIDEnabled()`. It is not a generic Remote ID broadcast switch and must
+not be mapped to FAA Remote ID, the general EU direct-identification path, Japan, China, or a
+global aircraft RID control.
+
+On 2026-08-27, while the current aircraft reported the CN area, a direct-aircraft, read-only
+`0x03/0x77` request with payload `0x02` produced no matching response. The only valid result for
+this product/region state is therefore `unavailable`; it is not evidence that EID is off. No
+`0x00` or `0x01` request was sent, and writes remain prohibited unless a matching successful GET
+first establishes support and a separate authorized procedure defines readback and rollback.
+
+### Other development and authorized-exception paths
 
 DJI Fly does contain a separate internal-only area injection route through
 `key_country_code_local_forever_debug` and the native area-code manager. Normal synchronization can
 then propagate an area to the flight controller and Sky/Ground radio surfaces. It is not a pure
 Remote ID selector: it can affect FlySafe and radio regulatory policy at the same time, has no
 supported production UI, and does not prove the emitted Remote ID wire format. It is therefore a
-read-only research finding, not a proposed FindUAS control. The narrower
+protocol research finding, not a proposed FindUAS control. Separate bounded experiments verified
+the FC-area and Sky-country setters and their restoration. The Ground attempt did not obtain a
+matching ACK or change the subsequent CN readback. They did not exercise DJI Fly's injection
+preference or write RC-policy, radio-power, or Remote ID surfaces. The narrower
 `debug_area_code_switch` only gates part of device synchronization and is not a country selector.
 
 DJI documents the area-strategy setter as useful during development. Static analysis of the
@@ -308,7 +346,7 @@ DJI Fly `3000003` warning covers only the first layer. `FCHasWrittenUUID == true
 historical UUID and proves only that the FC holds some identity, not that it matches the current
 account.
 
-## 2026-08-27 dual-path read-only hardware validation
+## 2026-08-27 bounded hardware validation
 
 ### Two independently visible DJI USB devices
 
@@ -383,7 +421,42 @@ The decompiled long form of `DataOsdGetPushHome` (`0x03/0x44`) exposes a direct 
 
 Bounded passive windows while the aircraft was not flying contained `0x03/0x43` but no long
 `0x03/0x44`, so this run neither proves nor disproves an effective 30/50 m cap. No motors were
-started and no setting was changed.
+started and none of the flight-limit settings was changed.
+
+### Bounded area/country transactions and the remaining region surfaces
+
+The authoritative FC area getter reported CN (ISO numeric 156). Under explicit laboratory
+authorization, a one-shot setter changed only that FC value to US (840); immediate readback
+reported US. The original CN value was then restored, and a final readback reported CN. This
+establishes a reversible `CN -> US -> CN` closed loop for the FC area field on the current
+aircraft. It does not establish a complete DJI region change and does not show that Remote ID or
+radio behavior changed.
+
+Under a later, surface-specific authorization, both airlink routes first had to return CN on two
+consecutive GETs. Sky then accepted exactly one fixed US country SET with a strictly matching ACK;
+the immediately following GET returned US. One CN restore SET also produced a matching ACK and the
+next GET returned CN. Ground transmitted exactly one fixed US SET, but no strictly matching ACK
+arrived in the response window. The following safe GET still returned CN, so the harness sent no CN
+restore and did not retry US. This is a successful Sky closed loop and an inconclusive Ground
+attempt with no observable or durable applied state, not evidence that Ground universally rejects
+or lacks the setter.
+
+After restoration, separate read-only country queries reported:
+
+| Surface | Final observation |
+| --- | --- |
+| FC area | CN, restored and verified |
+| Sky/airlink country | CN |
+| Ground/airlink country | CN |
+| RC/DJI Fly policy country | unavailable / unknown |
+
+Sky was temporarily written and restored; Ground received one forward request, after which the
+immediate and two final GETs reported CN. No observable or persistent Ground change was established,
+and the RC/DJI Fly policy surface could not be read through the available route. Consequently, these
+surface-specific checks still are **not a synchronized region switch**. Two independent final probes
+reported FC/Sky/Ground all CN. The external FindUAS receiver was offline, so there was also no
+independent RF observation with which to test whether any Remote ID message, transport, regional
+format, channel set, or transmit power changed.
 
 ### RID status remains a subscription/RF validation problem
 
@@ -399,9 +472,13 @@ The safest onboard check is an official-runtime read-only listener for
 HMS 30331--30334. Even `WORKING` or `isRidNormal=true` is only aircraft self-report; a simultaneous
 independent receiver capture after user-initiated motor start remains necessary to prove RF
 broadcast. A normal macOS Bluetooth device list is not sufficient for this check because broadcast
-Remote ID need not appear as an ordinary connectable BLE peripheral.
+Remote ID need not appear as an ordinary connectable BLE peripheral. The external receiver was
+offline during the area/country experiments, so they provide no over-the-air Remote ID evidence.
 
-## Remaining read-only work
+## Remaining work
+
+Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
+the remaining probes are read-only.
 
 1. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
@@ -409,9 +486,14 @@ Remote ID need not appear as an ordinary connectable BLE peripheral.
    failure fields and the accompanying HMS 30331--30334 state.
 3. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-4. Recover the native/DUML mapping for `KeyEIDSwitch`, `IsEuCeEnableC0Rid`, RID working-status
-   subscription, and aircraft binding without probe-writing any key.
+4. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
+   GET response before considering any authorized set/readback test; separately recover
+   `IsEuCeEnableC0Rid`, RID working-status subscription, and aircraft binding without
+   probe-writing them.
 5. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
+6. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
+   [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext
+   view before doing a 0600/0700 file-level diff; do not force-extract `STUE` ciphertext.
 
 ## Primary sources
 

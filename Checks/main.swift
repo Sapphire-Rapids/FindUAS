@@ -1,3 +1,4 @@
+import CDJIUSBBridge
 import FindUASCore
 import Foundation
 
@@ -9,9 +10,10 @@ private func check(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 do {
+    check(dji_usb_bridge_protocol_self_test() == 1, "fixed DJI USB protocol self-test")
     check(FindUASProtocol.isCompatibleAdvertisementName("FindUAS Device"), "FindUAS advertisement name")
     check(FindUASProtocol.isCompatibleAdvertisementName("finduav device"), "case-insensitive FindUAV advertisement name")
-    check(!FindUASProtocol.isCompatibleAdvertisementName("DJI-MINI5PRO-7550"), "aircraft advertisement is not a receiver")
+    check(!FindUASProtocol.isCompatibleAdvertisementName("DJI-TEST-AIRCRAFT"), "aircraft advertisement is not a receiver")
 
     var legacy = BLEFrameAssembler()
     let legacyPrefixFrames = try legacy.feed(Data(#"{"uas"#.utf8))
@@ -110,6 +112,185 @@ do {
     check(captured?.channels == [6, 149], "captured device channels")
     check(captured?.batteryPercent == 82, "captured device battery")
     check(captured?.sound == true && captured?.flashLight == true, "captured device flags")
+
+    check(RIDLabProfile.allCases.count == 10, "Remote ID lab exposes every validation profile")
+    var lab = RIDLabSession()
+    check(lab.phase == .complianceAuto, "Remote ID lab starts in compliance-auto")
+    check(lab.broadcastIntent == .silent, "Remote ID lab starts with a silent intent")
+    check(lab.sourceCapability.backend == .noRFBackend, "Remote ID lab identifies the no-RF backend")
+    check(lab.sourceCapability.supportsDryRun, "no-RF backend supports dry-run")
+    check(!lab.sourceCapability.canTransmitRemoteID, "no-RF backend cannot transmit Remote ID")
+    check(!lab.sourceCapability.canWriteDevice, "no-RF backend cannot write a device")
+    check(!lab.sourceCapability.canChangeDeviceRegion, "no-RF backend cannot change a device region")
+
+    let labStart = Date(timeIntervalSince1970: 1_800_000_000)
+    try lab.beginPrecheck(profile: .euIntegrated, at: labStart)
+    check(lab.phase == .precheck && lab.selectedProfile == .euIntegrated, "lab enters profile precheck")
+    do {
+        try lab.stage(leaseMinutes: 5, at: labStart)
+        check(false, "staging without checklist gates must fail")
+    } catch let error as RIDLabError {
+        guard case .missingChecklistItems(let items) = error else {
+            check(false, "staging without gates reports missing checklist items")
+            throw error
+        }
+        check(items.count == RIDLabChecklistItem.allCases.count, "every preflight gate is required")
+    }
+    do {
+        try lab.stage(leaseMinutes: 4, at: labStart)
+        check(false, "lease below five minutes must fail")
+    } catch let error as RIDLabError {
+        check(error == .invalidLeaseMinutes(4), "short lease validation error")
+    }
+    do {
+        try lab.stage(leaseMinutes: 16, at: labStart)
+        check(false, "lease above fifteen minutes must fail")
+    } catch let error as RIDLabError {
+        check(error == .invalidLeaseMinutes(16), "long lease validation error")
+    }
+
+    for item in RIDLabChecklistItem.allCases {
+        try lab.setChecklistItem(item, satisfied: true, at: labStart)
+    }
+    try lab.setBroadcastIntent(.broadcast, at: labStart)
+    check(lab.allChecklistItemsSatisfied, "all lab preflight gates can be satisfied")
+    check(lab.broadcastIntent == .broadcast, "broadcast is captured only as a staged intent")
+    try lab.stage(leaseMinutes: 15, at: labStart)
+    check(lab.phase == .staged && lab.leaseMinutes == 15, "bounded lab lease is staged")
+    do {
+        try lab.setBroadcastIntent(.silent, at: labStart)
+        check(false, "broadcast intent cannot change after staging")
+    } catch let error as RIDLabError {
+        check(
+            error == .invalidTransition(expected: [.precheck], actual: .staged),
+            "staged intent is immutable"
+        )
+    }
+
+    let activationTime = labStart.addingTimeInterval(10)
+    try lab.activateDryRun(at: activationTime)
+    check(lab.phase == .activeDryRun, "staged lab scenario activates only as dry-run")
+    check(
+        lab.expiresAt == activationTime.addingTimeInterval(15 * 60),
+        "active dry-run has a bounded expiration"
+    )
+    check(!lab.expire(at: activationTime.addingTimeInterval(15 * 60 - 1)), "lease does not expire early")
+    check(lab.expire(at: activationTime.addingTimeInterval(15 * 60)), "lease expires at its deadline")
+    check(lab.phase == .complianceAuto, "lease expiry restores compliance-auto")
+    check(lab.selectedProfile == nil && lab.broadcastIntent == .silent, "expiry clears staged scenario state")
+    check(lab.auditEvents.contains { $0.kind == .leaseExpired }, "lease expiry is audited")
+
+    try lab.beginPrecheck(profile: .usModule, at: labStart)
+    for item in RIDLabChecklistItem.allCases {
+        try lab.setChecklistItem(item, satisfied: true, at: labStart)
+    }
+    try lab.stage(leaseMinutes: 5, at: labStart)
+    try lab.activateDryRun(at: labStart)
+    lab.stop(at: labStart)
+    check(lab.phase == .complianceAuto && lab.expiresAt == nil, "Stop restores compliance-auto")
+
+    try lab.beginPrecheck(profile: .japan, at: labStart)
+    for item in RIDLabChecklistItem.allCases {
+        try lab.setChecklistItem(item, satisfied: true, at: labStart)
+    }
+    try lab.stage(leaseMinutes: 5, at: labStart)
+    try lab.beginRollback(at: labStart)
+    check(lab.phase == .rollback, "explicit rollback state is observable")
+    try lab.completeRollback(at: labStart)
+    check(lab.phase == .complianceAuto, "completed rollback restores compliance-auto")
+
+    lab.enterLockout(reason: .manualSafetyInterlock, at: labStart)
+    lab.stop(at: labStart)
+    check(lab.phase == .lockout, "Stop cannot bypass a safety lockout")
+    try lab.resetLockout(at: labStart)
+    check(lab.phase == .complianceAuto, "explicit reset clears lockout")
+
+    try lab.beginPrecheck(profile: .raw, at: labStart)
+    for offset in 0..<150 {
+        try lab.setChecklistItem(
+            .controlledTestArea,
+            satisfied: offset.isMultiple(of: 2),
+            at: labStart.addingTimeInterval(TimeInterval(offset))
+        )
+    }
+    check(
+        lab.auditEvents.count == RIDLabSession.maximumAuditEventCount,
+        "redacted in-memory audit is bounded"
+    )
+
+    let expectedRegions: [(DJIRegulatoryRegion, String, UInt16)] = [
+        (.australia, "AU", 36),
+        (.china, "CN", 156),
+        (.france, "FR", 250),
+        (.germany, "DE", 276),
+        (.japan, "JP", 392),
+        (.singapore, "SG", 702),
+        (.unitedArabEmirates, "AE", 784),
+        (.unitedKingdom, "GB", 826),
+        (.unitedStates, "US", 840),
+    ]
+    for (region, alpha2, numeric) in expectedRegions {
+        check(region.alpha2 == alpha2 && region.isoNumeric == numeric, "DJI ISO region mapping \(alpha2)")
+        check(DJIRegulatoryRegion(alpha2: alpha2.lowercased()) == region, "case-insensitive alpha-2 region parse")
+        check(DJIRegulatoryRegion(isoNumeric: numeric) == region, "numeric region parse")
+    }
+    check(DJIRegulatoryRegion(alpha2: "ZZ") == nil, "unknown alpha-2 region is rejected")
+    check(DJIRegulatoryRegion(isoNumeric: 999) == nil, "unknown numeric region is rejected")
+
+    let originalRegionSnapshot = DJIRegionSnapshot(
+        flightControllerArea: .region(.china),
+        airlinkSkyCountry: .region(.china),
+        airlinkGroundCountry: .region(.china)
+    )
+    check(originalRegionSnapshot.usbSurfacesAgree, "FC, Sky, and Ground agreement is explicit")
+    check(originalRegionSnapshot.agreedUSBRegion == .china, "agreed USB region is exposed only on agreement")
+    let recoveryJournal = DJIRegionRecoveryJournal(
+        original: originalRegionSnapshot,
+        target: .unitedStates,
+        processSessionID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+        createdAt: labStart,
+        leaseExpiresAt: labStart.addingTimeInterval(60)
+    )
+    let targetRegionSnapshot = DJIRegionSnapshot(
+        flightControllerArea: .region(.unitedStates),
+        airlinkSkyCountry: .region(.unitedStates),
+        airlinkGroundCountry: .region(.unitedStates)
+    )
+    let partialRegionSnapshot = DJIRegionSnapshot(
+        flightControllerArea: .region(.china),
+        airlinkSkyCountry: .region(.unitedStates),
+        airlinkGroundCountry: .region(.china)
+    )
+    let thirdPartyRegionSnapshot = DJIRegionSnapshot(
+        flightControllerArea: .region(.china),
+        airlinkSkyCountry: .region(.japan),
+        airlinkGroundCountry: .region(.china)
+    )
+    let unavailableRegionSnapshot = DJIRegionSnapshot(
+        flightControllerArea: .region(.china),
+        airlinkSkyCountry: .unavailable,
+        airlinkGroundCountry: .region(.china)
+    )
+    check(
+        classifyDJIRegionReconciliation(current: originalRegionSnapshot, journal: recoveryJournal) == .alreadyRestored,
+        "reconciliation recognizes the original vector"
+    )
+    check(
+        classifyDJIRegionReconciliation(current: targetRegionSnapshot, journal: recoveryJournal) == .targetStillActive,
+        "reconciliation recognizes the complete target vector"
+    )
+    check(
+        classifyDJIRegionReconciliation(current: partialRegionSnapshot, journal: recoveryJournal) == .partialTargetState,
+        "reconciliation recognizes a partial transaction"
+    )
+    check(
+        classifyDJIRegionReconciliation(current: thirdPartyRegionSnapshot, journal: recoveryJournal) == .thirdPartyState,
+        "reconciliation refuses an unrelated third value"
+    )
+    check(
+        classifyDJIRegionReconciliation(current: unavailableRegionSnapshot, journal: recoveryJournal) == .unavailable,
+        "reconciliation refuses incomplete readback"
+    )
     print("FindUASCoreChecks: all checks passed")
 } catch {
     FileHandle.standardError.write(Data("CHECK FAILED WITH ERROR: \(error)\n".utf8))

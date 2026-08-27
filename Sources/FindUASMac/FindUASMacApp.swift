@@ -10,6 +10,8 @@ struct FindUASApp: App {
                 .environmentObject(appState)
                 .environmentObject(appState.bluetooth)
                 .environmentObject(appState.records)
+                .environmentObject(appState.ridLab)
+                .environmentObject(appState.djiUSB)
                 .frame(minWidth: 1050, minHeight: 680)
         }
         .windowStyle(.titleBar)
