@@ -34,7 +34,8 @@ network services without an explicit product decision and privacy review.
   and FCC/CE RF-policy research, including separately authorized bounded state-only transactions;
   it is context, not a radio-modification implementation or product feature.
 - `docs/DJI_RID_FIRMWARE_RESEARCH.md`: Assistant 2 inventory, the encrypted `wa150` trust boundary,
-  verified `rc331/0205` Android OTA/platform inventory, and non-flashable offline integrity work;
+  verified `rc331/0205` Android OTA/platform inventory, verified-outer/protected-inner
+  `rc331/0200`, current official DJI Fly native evidence, and non-flashable offline integrity work;
   it is context, never a downloader, upgrader, root guide, signature bypass, or Remote ID control.
 - `docs/REMOTE_ID_COMPATIBILITY_TESTING.md`: the safety boundary, regional profiles, and phased
   design for isolated Remote ID receiver compatibility tests. It is not an aircraft-region or
@@ -198,6 +199,36 @@ Official `rc331/10.00.0700/0205` passed its public outer signature and chunk che
 and may be used for offline filesystem analysis only. It is the Android/Qualcomm base-system OTA,
 not the matching DJI Fly module. All extracted partitions, APKs, platform apps, and binaries remain
 outside this repository.
+
+Official `rc331/10.00.0700/0200` also passed its outer PRAK signature and checksum verification
+without force. Its inner `flyapp`/FLYA is a separate PRAK/TBIE object: all tested public key
+variants fail inner signature or plaintext checksum. Do not repeat the sweep, use force output as
+plaintext, or imply that root supplies the missing key.
+
+The current official DJI Fly phone APK and targeted native entries are work-only research inputs.
+Repository documentation may retain version, hashes, key/parameter names, and independently
+recovered behavior, but never the APK, library, decompiled source, signing certificate, download
+helper, CDN URL/query, or vendor bytes. It is same-generation evidence, not proof of the exact live
+RC 2 package.
+
+For the recovered RID policy parameters, FLYC `0x03/0xF7` is metadata GET, `0x03/0xF8` is value
+GET, `0x03/0xF9` is write, and `0x03/0xFA` is reset. Keep `0xD7757AD2` and `0xF80992FE`
+observation-only. A read-only probe must be hard-allow-listed to F7/F8 and those hashes. A
+`LIBUSB_ERROR_ACCESS`/claim failure while Assistant is active means no request was sent; do not
+misreport it as protocol failure. Never add F9, FA, a generic hash reader, or a guessed value width
+to product code.
+
+Public F8 response layouts conflict even within the pinned prior art: `dji-firmware-tools` plus
+DJI-Link's runtime parser/RTH notes use `[status][hash][value]`, while DJI-Link's `PARAM_WIRE.md`
+uses `[hash][value]`. Until a current callback or capture resolves the live build, preserve the raw
+reply, look for the requested hash at offset 0 or 1, and accept a layout only after route, sequence,
+F7 type/size, echoed-hash, and total-length checks. Never select a variant merely because one parser
+returns a plausible Boolean.
+
+The public-prior-art audit found neither a fully reproducible no-root base/split export for this
+exact RC331 build nor a successful plaintext recovery of its exact `10.00.0700/0200` FLYA. Android
+public APK paths, older emulator recovery, and committed community DEX files are research routes,
+not proof of live-package parity and not justification for root or bootloader unlock.
 
 The analysed adjacent OTA contains `com.dpad.fuli` with Android system UID. System UID is not root,
 and adjacent-package presence is not live-device proof. Do not launch its updater/recovery, Type-C,

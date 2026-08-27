@@ -216,7 +216,12 @@ debug toggle.
 `EU_BUCKET_COEXIST_C0_RID` cloud namespace, checks whether the current area is in its
 `country_list`, and combines that result with the aircraft's CE class being C0 before writing the
 key through `EuCeCertificationModel`. This is an automatic EU C0 coexistence policy, not a generic
-RID debug switch. Its native DUML mapping remains unrecovered, so it must not be probe-written.
+RID debug switch. The current official DJI Fly 1.21.10 native library contains the corresponding
+FC parameter name `EU_CE_enable_c0_rid_0`, whose established DJI hash is `0xF80992FE`, plus the
+F7/F8/F9/FA hash-parameter transport. Corrected image-base-aware analysis directly pairs the Key
+and parameter with `GetConfigValueHandler<BoolMsg>` / `SetConfigValueHandler<BoolMsg>`. `BoolMsg`
+does not prove a one-byte wire value; the current product's F7 metadata still must establish type
+and size, and the parameter must not be probe-written.
 
 A second business path, `UAVRidBroadcastEffectCloudControlLogic`, reads
 `RID_BROADCAST_EFFECT_ICLOUD_CONTROL`, selects product-specific `u8_type_bitmap` and
@@ -227,7 +232,10 @@ only in the inclusive 0--18 range and otherwise becomes zero. The final value is
 The bitmap meanings are still unknown, and no evidence connects this key to a local force-working
 or disable-RID toggle. Generated lifecycle and injection classes register this and the other RID
 background logics on aircraft connect/disconnect, so these are active business paths rather than
-unused definitions.
+unused definitions. The same current official native library pairs this Key with the FC parameter
+name `ccc_broadcast_signal_quality_0`, hash `0xD7757AD2`, and IntMsg get/set config handlers.
+`IntMsg` likewise does not establish the wire width. The mapping is closed for this native build,
+but it does not reveal the bitmap semantics or promote the field to an enable switch.
 
 ## DJI account: what “correctly logged in” means
 
@@ -375,8 +383,16 @@ object is a signed Android OTA whose update-engine metadata enumerates 29 A/B pa
 selected partitions were extracted for static inspection.
 
 This OTA is the Android/Qualcomm base system, not DJI Fly. Its `/dji_apk` directory is empty, so the
-matching `dji.go.v5` and `libsdk_jni.so` gap remains. The adjacent changed `0200` module is the
-stronger offline DJI Fly/FLYA candidate.
+embedded RC 2 package is not present there. The exact `0200` body has since been outer-verified and
+identified as a separately protected `flyapp`/FLYA image: every tested public PRAK and TBIE variant
+fails its inner signature or plaintext checksum. That is a key/trust-boundary result, not a reason
+to force-decrypt or root the controller.
+
+Separately, DJI's current official Android phone-distribution APK (`1.21.10`) supplies a clean
+same-generation `libsdk_jni.so` research boundary. It contains the RID keys above, the two named FC
+parameters, and the FLYC `0x03/0xF7` metadata GET, `0x03/0xF8` value GET, and `0x03/0xF9` write
+plus `0x03/0xFA` reset transports. This closes the general native-family gap while leaving exact
+embedded-RC version parity unresolved. The APK and native library remain outside the repository.
 
 The selected vendor image contains the preinstalled `com.dpad.fuli` development assistant. It uses
 `android.uid.system` and its internal command UI forwards entered text to `Runtime.exec(...)`.
@@ -393,8 +409,9 @@ shell, ADB authorization, root, unlock, transfer, reboot, or flash was exercised
 
 Targeted base-OTA inspection did not identify an explicit RID/UAS-ID platform service or DJI user
 `account`/`login` service. Its activation, certificate, TEE, RPMB, and crypto-state paths are device
-trust mechanisms, not evidence of user-account state. The matching DJI Fly/aircraft runtime remains
-the account/RID target. The DJI-modified `adbd` also overrides ordinary `ro.adb.secure` behavior
+trust mechanisms, not evidence of user-account state. The current phone APK can now answer
+same-generation static questions; the live embedded DJI Fly/aircraft runtime remains the target
+for exact RC behavior and account/RID timing. The DJI-modified `adbd` also overrides ordinary `ro.adb.secure` behavior
 with a production/user-lock gate, so debug-friendly build properties are not proof of an open root
 shell.
 
@@ -502,8 +519,13 @@ format, channel set, or transmit power changed.
 
 `KeyRidWorkingStatusPush` is get/listen-only and can be resolved at the Java/native API boundary to
 the complete key tuple `(product=0, component=4, index=0, subcomponent=65534,
-subindex=65534, identifier="RidWorkingStatusPush")`. The identifier-to-DUML command table lives in
-the unavailable matching `libsdk_jni.so`. It is therefore not safe to invent a raw command ID. Its
+subindex=65534, identifier="RidWorkingStatusPush")`. A current official DJI Fly native library now
+maps it to ADS-B/RID command set `0x11`, command `0x1C`. The native pack begins with little-endian
+support/working flags and uses region/product-specific bit interpretations; the remaining raw bytes
+are not fully named. DJI-Link's committed DJI Fly 1.21.4 telemetry table independently corroborates
+the route and US bit 0, Cloud bit 10, EU bit 11, and France bit 13, with product fallbacks. The
+command is now a strong static subscription target, but it is still a
+push/status source rather than a setter. Its
 absence from a passive IF4 window is not evidence that RID is unsupported: the stream may start
 only after `UAVKeyManager.listen(...)` establishes a subscription.
 
@@ -520,22 +542,22 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. With separate, action-specific authorization, first establish whether the adjacent official
-   development-assistant route exists on the live controller using only `id` and
-   `pm path dji.go.v5`. If the results are bounded and non-root, review a second authorization to
-   copy only package-manager public base/split APK paths to shared storage. Do not invoke updater,
-   recovery, Type-C, FTM, SDR, MCU, or log-toggle functions; do not reuse a private ADB key, unlock,
-   root, or flash.
-2. Continue the `rc331/0200` FLYA/TBIE/TEE path offline if the live public-APK route is unavailable.
+1. Close DJI Assistant 2 normally, then retry only the allow-listed F7/F8 metadata/value reads for
+   hashes `0xD7757AD2` and `0xF80992FE`. The existing probe has no F9 path; its first attempt sent no
+   request because `claimInterface` returned `LIBUSB_ERROR_ACCESS` while Assistant was active.
+2. Use current official DJI Fly 1.21.10 for handler-level static mapping. Export the live
+   controller's package-manager public base/split APKs only if exact embedded-build parity is
+   needed. Do not repeat the exhausted public-key sweep over `0200`, and do not root or unlock it.
 3. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
-4. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush`, retaining both
-   failure fields and the accompanying HMS 30331--30334 state.
+4. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush` / `0x11/0x1C`,
+   retaining the raw native pack, both higher-level failure fields, and HMS 30331--30334.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
 6. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
    GET response before considering any authorized set/readback test; separately recover
-   `IsEuCeEnableC0Rid`, RID working-status subscription, and aircraft binding without
+   current-product F7 metadata for `IsEuCeEnableC0Rid`, RID working-status subscription, and
+   aircraft binding without
    probe-writing them.
 7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
@@ -549,12 +571,16 @@ the remaining probes are read-only.
 - [DJI MSDK V5.18.0 aircraft-provided artifact](https://repo1.maven.org/maven2/com/dji/dji-sdk-v5-aircraft-provided/5.18.0/dji-sdk-v5-aircraft-provided-5.18.0.jar)
 - [DJI FAA Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI account/offline-limit support note](https://repair.dji.com/help/content?customId=en-us03400011758&pbc=mF6h4ZTt&spaceId=34)
+- [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)
 - [DJI Mobile SDK V5 sample repository](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
 - [AOSP Verified Boot device state](https://source.android.com/docs/security/features/verifiedboot/device-state)
 - [AOSP Verified Boot flow](https://source.android.com/docs/security/features/verifiedboot/boot-flow)
 - [Android `ApplicationInfo` public APK paths](https://developer.android.com/reference/android/content/pm/ApplicationInfo)
 - [Independent exact `rc331/0205` corroboration](https://github.com/danusha2345/SkylabFCCfree/commit/51ef14244cbd2e9346db67fd9dd15e08e30750e8)
 - [RC 2 single-device risk report](https://github.com/whitelewi1-ctrl/dji-rc2-research/commit/fc5949acfe8196e2faccf96615821b62fbe60804)
+- [RC331 FLYA public-key boundary report](https://github.com/o-gs/dji-firmware-tools/issues/467)
+- [DJI-Link 1.21.4 parameter wire analysis](https://github.com/Kolya080808/DJI-Link/blob/13b357f405149674a33e3285780885728f52cafe/dji_link_beta/reverse_docs/PARAM_WIRE.md)
+- [DJI-Link 1.21.4 Remote ID telemetry table](https://github.com/Kolya080808/DJI-Link/blob/13b357f405149674a33e3285780885728f52cafe/dji_link_beta/reverse_docs/TELEMETRY_TABLE.txt)
 
 Community reverse-engineering repositories were used to locate candidate native symbols and old
 protocol context, but unverified command mappings are deliberately not presented here as facts.

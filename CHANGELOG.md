@@ -35,6 +35,18 @@ stable releases begin.
   29-partition inventory, the system-UID/non-root development-assistant boundary, and the decision
   to reject bootloader unlock/root on the current controller. No firmware, APK, extracted partition,
   downloader, upgrader, root tool, or Remote ID patch is included.
+- Recorded strict outer verification of `rc331/10.00.0700/0200`, the separate inner PRAK/TBIE
+  failure boundary, and targeted static evidence from the current official DJI Fly native library:
+  two RID-policy Key/parameter/handler registrations plus distinct F7 metadata-read, F8 value-read,
+  F9 write, and FA reset transports. The first fixed F7/F8 live probe sent no request because USB
+  interface access was unavailable while Assistant was active.
+- Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
+  former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
+  runtime parser disagree on the F8 prefix, so offset-0/offset-1 echoed-hash detection is recorded
+  as a fail-closed requirement rather than silently normalizing one layout.
+- Audited public RC331 extraction/decryption prior art and found no exact, reproducible no-root
+  base/split export for the current build and no plaintext recovery of the exact `10.00.0700/0200`
+  FLYA; root and bootloader unlock therefore remain outside the next-step path.
 
 ### Security and privacy
 

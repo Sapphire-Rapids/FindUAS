@@ -27,6 +27,8 @@ work.
 | French Electronic ID switch | Native FLYC `0x03/0x77` is recovered for the supported-product French EID setting; the current CN product returned no matching GET response | Report current state as unavailable and keep it research-only; it is not generic RID |
 | DJI MSDK area strategy | Selects a regional SDK delegate for development; it is not proof of changing the aircraft's true region or over-the-air format | Investigate only in a separate, supported MSDK test app |
 | FlySafe `RID_UNLOCK` | An official managed license type; a retained, stubbed delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Never represent as a local toggle or reproduce its authorization path |
+| EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`) and BoolMsg config handlers; business logic owns it from cloud country membership plus C0 certification | Observation-only; converter type does not establish wire width, and this is not a user switch |
+| Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -90,6 +92,14 @@ Remote ID, EID, SDR-power, account, flight-limit, or receiver setting was writte
 
 The external FindUAS receiver was offline during those experiments. No conclusion can therefore be
 drawn about actual Remote ID transmission, regional packet format, transport, or RF reception.
+
+The two policy hashes above now have a same-generation static read path in the official DJI Fly
+1.21.10 native library: FLYC `0x03/0xF7` reads parameter metadata and `0x03/0xF8` reads its value;
+`0x03/0xF9` writes and `0x03/0xFA` resets. FindUAS implements none of these as a generic endpoint.
+A work-only probe is hard-locked to F7/F8 and those two hashes. During its first live attempt,
+DJI Assistant 2 was active and `claimInterface` returned `LIBUSB_ERROR_ACCESS` before any USB
+request was sent. This is consistent with USB ownership/permission contention; causation was not
+independently proven.
 
 An independent probe linked against the same fixed C bridge used by the app subsequently reproduced
 the final read-only vector twice: FC=`CN`, Sky=`CN`, Ground=`CN`, RC/DJI Fly policy unavailable. Because
@@ -526,6 +536,7 @@ standard, contents, timing, or RF power.
 - [DJI MSDK V5 `IFlyZoneManager` and `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
 - [DJI MSDK 5.18.0 release notes and supported-product list](https://developer.dji.com/doc/mobile-sdk-tutorial/en/?pbc=D3IDBfR5&pm=custom)
 - [DJI MSDK V5 official sample](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
+- [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)
 - [FAA Remote ID overview](https://www.faa.gov/uas/getting_started/remote_id)
 - [14 CFR § 89.110](https://www.ecfr.gov/current/title-14/chapter-I/subchapter-F/part-89/subpart-B/section-89.110)
 - [FAA Remote ID executive summary](https://www.faa.gov/sites/faa.gov/files/uas/getting_started/remote_id/RemoteID_Executive_Summary.pdf)
