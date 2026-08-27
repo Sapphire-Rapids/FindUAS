@@ -124,6 +124,29 @@ GET 仍为 `CN`，因此没有发送恢复写或重试。结束后连续两轮�
 FC/Sky/Ground=`CN`。这些结果只验证协议状态，不证明 Remote ID、频道或 O4 发射功率发生变化，
 也没有放宽上面的应用边界。
 
+关闭 Assistant 2 并释放 USB 后，研究工具又验证了两件事。第一，当前 DJI Fly 中出现的两个
+RID policy 参数名，在这台 Mini 5 Pro 上均未返回可用的 F7 参数元数据；同一路由读取高度/距离
+参数成功，因此它们不能作为这台飞机的稳定 RID 开关，更没有进行 F9 写入。第二，已闭合
+`0x11/0x1C` 的七字节 RID/EID 自报状态布局，并在飞机与 RC 2 两端完成静止、未起桨的严格只读
+基线；两路都未观察到该 push。这个基线不能证明“不支持”，因为状态可能需要官方订阅或状态变化，
+且用户确认该机型只有起桨后才开始实际播发 RID。外部监测设备当时离线，所以没有空口结论。
+
+当前最有希望的稳定开关路线不是这两个参数，而是 DJI 官方定义的 FlySafe `RID_UNLOCK` 签名许可。
+官方资料把它列为许可证类型 6，等级 1/2 分别对应欧盟/中国，并要求经过 DJI 账号下载、飞控序列号
+匹配、推送/拉取和许可启停。研究工具正在恢复当前只读许可证清单路线；在确认 Mini 5 Pro 存在真实许可、
+可以严格读回并能在起桨后由独立接收器验证之前，应用不会伪造许可、调用上传/启停命令，或把它冒充
+已经可用的 Remote ID 开关。
+
+首次实机核验发现，旧版 `0x11/0x11` 许可证清单请求在飞机直连和 RC 2 转发两路都超时；紧接着的
+阳性对照仍能分别读回 FC area=`CN` 与 Sky/Ground=`CN`。这说明设备与 USB 路由在线，但该旧查询
+入口不适用于当前产品，不能据此声称“清单为空”。下一步是闭合当前 DJI Fly/MSDK 的实际拉取协议。
+
+静态分析进一步确认，MSDK 5.18 的现代实现会先取得飞控序列号，再通过 FlySafe JNI/session 查询整个
+`FlysafeLicenseGroup`；它的公开 API/结果模型不是旧版逐索引模型，并能表达 `RID_UNLOCK`。但精确
+wire message 仍藏在 native 排队任务中，尚不能排除内部复用同一数值命令。DJI Fly 1.21.10 只能确认通用许可证同步/查询/启停子系统仍被打包，
+尚无 type-6 专用 UI 或服务器 entitlement 证据；可反编译的 1.21.4 界面只识别 type 0–4，会把 type 6
+当作未知项。因此当前仍没有可安全交付的实机 RID 开关。
+
 要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
 [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、
 [OpenDroneID nRF transmitter](https://github.com/opendroneid/transmitter-nrf) 或

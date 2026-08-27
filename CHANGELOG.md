@@ -38,15 +38,32 @@ stable releases begin.
 - Recorded strict outer verification of `rc331/10.00.0700/0200`, the separate inner PRAK/TBIE
   failure boundary, and targeted static evidence from the current official DJI Fly native library:
   two RID-policy Key/parameter/handler registrations plus distinct F7 metadata-read, F8 value-read,
-  F9 write, and FA reset transports. The first fixed F7/F8 live probe sent no request because USB
-  interface access was unavailable while Assistant was active.
+  F9 write, and FA reset transports. After Assistant was closed, the two fixed RID-policy hashes
+  returned only F7 status `0x03` over both direct and RC-routed plaintext paths, while known
+  height/distance parameters passed on the same route; neither candidate was read or written.
+- Recovered the exact seven-byte native `0x11/0x1C` RID/EID working-status layout and recorded
+  strict read-only aircraft/RC 2 motors-off baselines. No status candidate appeared without an
+  official subscription or state transition; this is not reported as lack of RID support or as an
+  RF result.
 - Cross-checked DJI-Link and `dji-firmware-tools`: both corroborate the hash-command family and the
   former independently corroborates RID status route `0x11/0x1C`. DJI-Link's own wire document and
-  runtime parser disagree on the F8 prefix, so offset-0/offset-1 echoed-hash detection is recorded
-  as a fail-closed requirement rather than silently normalizing one layout.
+  runtime parser disagree on the F8 prefix; current DJI Fly 1.21.10 native code resolves its build
+  as `[batch_status][hash][cached-size value]...`. The UAV139/wa150 abstraction dynamically
+  registers both RID-policy mappings, but the live FC still returns no metadata for either.
 - Audited public RC331 extraction/decryption prior art and found no exact, reproducible no-root
   base/split export for the current build and no plaintext recovery of the exact `10.00.0700/0200`
   FLYA; root and bootloader unlock therefore remain outside the next-step path.
+- Identified DJI's official signed FlySafe `RID_UNLOCK` license as the leading stable-control
+  candidate: published type 6 with EU/China levels, account download, FC-SN filtering, push/pull,
+  and license enable/disable semantics. Documented a privacy-redacted, read-only `0x11/0x11`
+  inventory check and explicitly excluded neighboring upload/toggle commands and license forgery.
+- Recorded that the legacy inventory request timed out through both direct-aircraft and RC 2 proxy
+  routes while immediate FC-area and Sky/Ground-country positive controls succeeded. This is
+  classified as a product/transport mismatch, not an empty license inventory.
+- Traced MSDK 5.18's current pull path from FC serial through FlySafe JNI/session mediation to a
+  whole `FlysafeLicenseGroup`, including RID-license model support. Recorded that its exact queued
+  wire message remains unresolved and that DJI Fly 1.21.10 package evidence does not prove a
+  type-6 UI or consumer entitlement; the older executable UI cannot safely label type 6.
 
 ### Security and privacy
 

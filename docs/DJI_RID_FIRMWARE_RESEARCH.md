@@ -131,11 +131,13 @@ Corrected image-base-aware constructor analysis closes both registrations in thi
   `GetConfigValueHandler<BoolMsg>` / `SetConfigValueHandler<BoolMsg>`.
 
 `IntMsg` and `BoolMsg` are SDK converter types, not proof of a fixed wire width. The actual
-`ConfigDataType` and byte count must come from the F7 metadata response. Current code directly
-confirms status at offset 0, a 16-bit type at offset 1, and min/max/default four-byte slots at
-offsets 7/11/15; the older public dissector's size/attribute names at offsets 3/5 are corroboration,
-not a field naming independently recovered from this binary. These facts do **not** turn either
-field into a general RID switch:
+`ConfigDataType` and byte count used by F8/F9 come from the initialized `CCacheConfigKeyInfo`, not
+from the Java/Kotlin converter name or a guessed Boolean width. Current code directly confirms F7
+status at offset 0, a 16-bit type at offset 1, and min/max/default four-byte slots at offsets
+7/11/15; the older public dissector's size/attribute names at offsets 3/5 are corroboration, not a
+field naming independently recovered from this binary. A successful F7 metadata response remains
+a mandatory live capability gate even though that callback is not what populates the SDK cache.
+These facts do **not** turn either field into a general RID switch:
 the recovered Java business logic owns the C0 value as an automatic cloud/area/CE-class policy and
 owns the CCC value as packed broadcast-effect configuration.
 
@@ -145,13 +147,23 @@ for exact version parity, but it is no longer necessary merely to establish that
 FC parameter names, and F7/F8/F9/FA transports exist in a current official implementation. No APK,
 native library, decompiled source, or private CDN material is present in this repository.
 
-A fixed read-only probe was prepared for only the two recovered parameter hashes and delegates
-only to the existing F7 metadata GET and F8 value GET. It has no F9, FA, or generic write path. Its
-first live attempt stopped before any USB request was sent because both direct-aircraft and RC-bridge
-`claimInterface` calls returned `LIBUSB_ERROR_ACCESS` while DJI Assistant 2 processes were active.
-That result is consistent with USB ownership/permission contention, not evidence that either
-parameter is absent or that the protocol failed. A future retry should first close Assistant 2
-normally, then repeat only the fixed F7/F8 reads.
+A fixed research-only probe was prepared for only the two recovered parameter hashes. It exposes
+F7 metadata GET and conditionally F8 value GET, and has no F9, FA, or generic hash path. After DJI
+Assistant 2 was closed and its USB interfaces released, both direct-aircraft and RC-routed
+plaintext F7 requests received the same one-byte payload `0x03` for both hashes. That payload is an
+error/end form, not the at-least-20-byte metadata record required before any F8 value read.
+
+This was not a broken F7 transport: on the same live RC path, the established height-limit,
+distance-limit, and distance-enabled parameters returned valid F7 metadata and F8 values. A
+separate legacy DJI SIMPLE-encryption control produced no matching response, while plaintext
+continued to pass the positive controls. The strongest current conclusion is therefore that
+`ccc_broadcast_signal_quality_0` and `EU_CE_enable_c0_rid_0` are not currently readable through
+this Mini 5 Pro's live FLYC metadata surface. Current DJI Fly does more than carry generic handler
+strings: its type-139/UAV139 (`wa150`) abstraction dynamically registers both FCConfig mappings.
+That application-side registration still does not prove the target FC firmware provides or
+enables either parameter. Status `0x03` may represent absence, a runtime/product gate, or another
+refusal; its exact public enum name remains unresolved and is not guessed. Neither candidate is
+eligible for F8 or F9 on this hardware.
 
 ### Public implementation cross-check
 
@@ -168,11 +180,13 @@ is internally inconsistent:
 
 The pinned `dji-firmware-tools` parser and DJI-Link's own runtime parser/RTH notes use
 `[status][hash][value]`, while DJI-Link's `PARAM_WIRE.md` documents `[hash][value]`. That conflict
-could be documentation drift or a real product/route variant; the current 1.21.10 native callback
-has not resolved it. A live reader must preserve the raw payload, look for the requested hash at
-offset 0 or 1, and accept a layout only after strict response length, F7 type/size, route, sequence,
-and echoed-hash checks. If neither candidate closes, the result is unknown rather than a guessed
-Boolean.
+could be documentation drift or a real product/route variant. The current 1.21.10 native callback
+does resolve its own build: byte 0 is a batch status, then entries repeat
+`[hash:u32le][value:cached_size]`. Size and `ConfigDataType` come from the SDK cache metadata, not
+from guessing the Java type. A reader for this build must require that layout plus strict response
+length, route, sequence, known request hash, cached size/type, and exact final cursor. An
+offset-zero hash parser may remain relevant only to a separately identified older variant; it
+must not be silently selected because it yields a plausible value.
 
 The two exact parameter names and hashes had no independent indexed GitHub mapping in this audit.
 Their name/hash pairing is reproducible with the public DJI hash algorithm, while their handler and
@@ -318,6 +332,36 @@ an RID patch and does not by itself prove an RSA verification result, because no
 `wa150` PRAK key is available to validate the original signature. The experiment did not repair checksums,
 re-sign, repack, transfer, or flash the file.
 
+## Modern FlySafe license route is the next native target
+
+The official MSDK 5.18 implementation does not instantiate or expose the legacy indexed
+`DataWhiteListRequestLicense` API/model when pulling aircraft licenses. Its current outer chain is:
+
+```text
+FC serial
+  -> queryFCLicensesJni
+  -> native_QueryLicenseFromFC(productId, deviceId)
+  -> ModuleMediator::QueryLicenseFromFC
+  -> queued native task
+  -> whole FlysafeLicenseGroup
+```
+
+The group model can carry a dedicated RID-license collection and level. Native dispatch checks a
+mediator readiness bit and carries product/device values, but the exact queued task's transport,
+message ID, payload, ACK, and version/product gates are not recovered; native code could still
+reuse the same numeric cmdset/cmdid with a different transaction shape. In the local MSDK 5.18
+`libdjisdk_jni.so`, the remaining target is the task constructed by
+`ModuleMediator::QueryLicenseFromFC` at VA `0x1c0f8c0`, using vptr/data table `0x38d9a00` and
+scheduler target `0x3883720`. Recover its `operator()`/message builder rather than searching or
+probing neighboring raw command IDs.
+
+This direction is independently consistent with the live result: legacy `0x11/0x11` timed out on
+both direct and RC 2 proxy routes, while immediate area/country positive controls succeeded. It is
+an endpoint mismatch, not an empty-inventory result. Current DJI Fly 1.21.10 package strings prove
+only that a generic license UI/JNI subsystem is present; they do not prove a type-6 UI, server
+entitlement, or Mini 5 Pro support. The executable DJI Fly 1.21.4 prior version recognizes only
+license types 0--4/255 and can mis-handle type 6, so its generic switch is not usable RID evidence.
+
 ## Handoff sequence
 
 1. Keep originals immutable and outside this repository. Verify size, official MD5, and local
@@ -334,10 +378,13 @@ re-sign, repack, transfer, or flash the file.
 5. Do not unlock the current controller bootloader, root/Magisk-patch it, modify boot, flash it, or
    reuse an existing/private ADB key. A future authorized ADB experiment must use an isolated,
    disposable key and a fixed read-only command set.
-6. After DJI Assistant 2 is closed, retry only the two allow-listed F7/F8 parameter reads. Treat an
-   unsupported status, missing response, or unknown width as unavailable; never escalate to F9 by
-   guessing a value type.
-7. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
+6. Do not repeat the completed RID-policy hash probes: both fixed candidates returned unavailable
+   F7 status on live direct/RC routes while known positive controls succeeded. Never escalate to F9
+   by guessing a value type.
+7. Continue only at the fixed modern FlySafe queued-task target above, or obtain a legitimate
+   current-session SDK query. Do not retry the legacy inventory command, feed group bytes to its
+   record parser, or guess a modern message ID.
+8. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
    control in FindUAS.
 
 ## Repository hygiene and known traps

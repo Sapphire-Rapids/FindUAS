@@ -26,7 +26,7 @@ work.
 | Disable ordinary aircraft Remote ID | No public generic DJI switch was found; US and current Chinese requirements explicitly prevent an ordinary operator disable control | Do not implement |
 | French Electronic ID switch | Native FLYC `0x03/0x77` is recovered for the supported-product French EID setting; the current CN product returned no matching GET response | Report current state as unavailable and keep it research-only; it is not generic RID |
 | DJI MSDK area strategy | Selects a regional SDK delegate for development; it is not proof of changing the aircraft's true region or over-the-air format | Investigate only in a separate, supported MSDK test app |
-| FlySafe `RID_UNLOCK` | An official managed license type; a retained, stubbed delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Never represent as a local toggle or reproduce its authorization path |
+| FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
 | EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`) and BoolMsg config handlers; business logic owns it from cloud country membership plus C0 certification | Observation-only; converter type does not establish wire width, and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
@@ -99,7 +99,10 @@ The two policy hashes above now have a same-generation static read path in the o
 A work-only probe is hard-locked to F7/F8 and those two hashes. During its first live attempt,
 DJI Assistant 2 was active and `claimInterface` returned `LIBUSB_ERROR_ACCESS` before any USB
 request was sent. This is consistent with USB ownership/permission contention; causation was not
-independently proven.
+independently proven. After Assistant was closed, the retry reached both live routes: each
+candidate returned only the one-byte F7 status payload `0x03`, while known height/distance
+parameters passed on the same RC-routed plaintext transport. The SIMPLE-encrypted control had no
+matching reply. Neither candidate therefore qualified for F8 or F9 on this product.
 
 An independent probe linked against the same fixed C bridge used by the app subsequently reproduced
 the final read-only vector twice: FC=`CN`, Sky=`CN`, Ground=`CN`, RC/DJI Fly policy unavailable. Because
@@ -149,6 +152,16 @@ No generic local `force working`, `broadcast enabled`, or `disable RID` debug Bo
 the recovered DJI Fly and MSDK paths. The aircraft's self-report must also not be confused with an
 independent RF observation; a separate receiver is still required to show that packets are
 actually receivable.
+
+The two current-DJI-Fly FC policy names are also no longer viable live switch candidates on the
+tested Mini 5 Pro. With Assistant closed, strict direct-aircraft and RC-routed F7 metadata GETs for
+`ccc_broadcast_signal_quality_0` and `EU_CE_enable_c0_rid_0` each returned only status byte `0x03`,
+whereas known height/distance parameters succeeded through the same plaintext transport. A legacy
+SIMPLE-encrypted control produced no reply. Because neither policy field supplied metadata, no
+value GET or write was attempted. Their presence in DJI Fly proves a multi-product SDK mapping,
+not availability on every aircraft. The UAV139/wa150 abstraction actually registers both mappings,
+so `0x03` is best described as unavailable on the live FC metadata surface; it does not prove that
+DJI Fly lacks the key, nor distinguish target omission from a runtime/product/permission gate.
 
 The regulatory direction is consistent with the implementation:
 
@@ -262,13 +275,57 @@ writes remain prohibited unless a separate, authorized laboratory protocol defin
 exact readback, isolation, restoration, and independent RF measurement. This path must not be
 implemented in FindUAS.
 
-### `RID_UNLOCK` is a managed license, with unverified runtime behavior
+### `RID_UNLOCK` is the leading managed-license path, with unverified Mini 5 Pro behavior
 
-DJI's official FlySafe model includes `RID_UNLOCK`; the currently recovered types are European and
-China. A retained delegate branch after a leading stub return only treats it as active when an
-enabled license matches the current area strategy, then reports `NO_BROADCAST`. This is structural
-evidence of a possible authorization-backed exception path, not runtime verification and not a
-locally minted preference. FindUAS must not request, synthesize, replay, or expose it as a switch.
+DJI's official FlySafe model includes `RID_UNLOCK`. The official Cloud API publishes it as license
+type 6 and defines level 1 as **EU RID Unlocked** and level 2 as **China RID Unlocked**. Official
+MSDK documentation also closes the intended trust flow: log in to a DJI account, download the
+account's signed licenses, push only licenses whose flight-controller serial matches the connected
+aircraft, pull the aircraft inventory back, and use `setFlyZoneLicensesEnabled` to enable or disable
+a selected license. This is therefore not a locally minted preference or a generic configuration
+bit.
+
+The current MSDK 5.18 artifact adds a useful but still static clue. Its retained delegate branch
+after a leading stub return treats an enabled `RID_UNLOCK` license matching the current EU/China
+area strategy as opened, then reports `broadcastRemoteIdEnabled=false` and state `NO_BROADCAST`.
+The consumer delegate selection does not contain a general Mini 5 Pro exclusion. Neither point
+proves that the provided stubbed artifact executes on this aircraft, that a RID license is already
+installed, or that the RF transmitter becomes silent.
+
+The older DJI command family provides a bounded read-only way to inspect the aircraft-side
+inventory: ADS-B/FlySafe command set `0x11`, command `0x11`, with a one-byte record index. Its
+response exposes total count, enabled/valid state, record type, and level. Research output must
+redact license ID, account/device identifiers, description, timestamps, coordinates, and raw
+payloads. Adjacent command `0x10` uploads a license and `0x12` changes its enabled state; neither may
+be called by the inventory probe or added to FindUAS. A future write experiment is justified only
+if a genuine type-6 license is found and must use exact license identity, pre/post pull, a bounded
+rollback, and independent receiver observation after motor start. Never synthesize, modify, forge,
+or replay a license.
+
+The strict work-only probe was then exercised once through both the direct-aircraft and RC 2 proxy
+routes. Both fixed `0x11/0x11` requests timed out. Immediate positive controls on the same live USB
+paths still returned FC area `CN` and Sky/Ground country `CN` with response type `0x80`. The timeout
+therefore belongs specifically to this legacy inventory route on the current product; it is not
+evidence that the aircraft is disconnected or that its license inventory is empty. The current
+DJI Fly/MSDK queued-task wire path must be recovered before another inventory claim or any
+enable-state design.
+
+The current MSDK 5.18 pull architecture provides a plausible explanation for the mismatch. Its
+public manager first reads the flight-controller serial, then calls `queryFCLicensesJni`, which reaches
+`native_QueryLicenseFromFC(productId, deviceId)` and `ModuleMediator::QueryLicenseFromFC`. The
+result is decoded as a whole `FlysafeLicenseGroup`, whose model can contain RID licenses; the public
+API/result model is not the legacy one-index/one-record transaction. A native readiness bit gates
+dispatch before the queued task runs. The exact task message ID, payload, ACK framing, and
+product/version gates are not yet recovered, and native code could still reuse the same numeric
+cmdset/cmdid with a different shape. There is therefore no safe raw replacement command to run.
+
+DJI Fly evidence is narrower than the MSDK model. The protected 1.21.10 package still contains the
+generic account-license and aircraft-license JNI/UI names, but no recovered current method body or
+type-6-specific UI/server entitlement. The closest executable prior version, 1.21.4, recognizes
+only license types 0--4 and 255; type 6 becomes `UNKNOWN` and can fall through to polygon handling.
+Its generic switch must therefore not be treated as a RID switch. In that prior flow, login and
+network gate server refresh of signed account licenses, while FC inventory query and enable-state
+display are not directly gated by an account Boolean. Import remains FC-SN/current-device bound.
 
 ## A region is three independent test dimensions
 
@@ -534,6 +591,7 @@ standard, contents, timing, or RF power.
 
 - [DJI MSDK V5 `IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
 - [DJI MSDK V5 `IFlyZoneManager` and `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
+- [DJI Cloud API FlySafe license schema and `RID_UNLOCK` levels](https://developer.dji.com/doc/cloud-api-tutorial/en/api-reference/dock-to-cloud/mqtt/dock/dock3/flysafe.html)
 - [DJI MSDK 5.18.0 release notes and supported-product list](https://developer.dji.com/doc/mobile-sdk-tutorial/en/?pbc=D3IDBfR5&pm=custom)
 - [DJI MSDK V5 official sample](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
 - [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)

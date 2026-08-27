@@ -101,6 +101,33 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     French EID is not a generic FAA/EU/JP/CN Remote ID switch.
 19. FC, Sky, Ground, and RC/DJI Fly policy are separate region surfaces. Never infer the unknown RC
     surface or a complete region change from one or three USB values.
+20. `RidWorkingStatusPush` is a read-only status source on `0x11/0x1C`, not a setter. The current
+    native handler consumes exactly seven raw bytes: a little-endian flag word, a four-byte area
+    value, and one failure byte. Until one Mini 5 Pro frame is captured, keep command type and
+    sender/receiver open and fail closed; never persist raw RID status payloads or infer RF
+    transmission from an onboard `normal` bit alone.
+21. FlySafe `RID_UNLOCK` is a signed, account/FC-bound license, not a local configuration bit.
+    The completed legacy work-only probe was limited to plaintext `0x11/0x11` record reads and
+    reported only count, enabled/valid, type, and level. It discarded raw payloads, license IDs,
+    descriptions, times, coordinates, account/device identifiers, and serials. Rule 22 now forbids
+    retrying that legacy command on this product. Never add adjacent upload `0x11/0x10` or
+    enable-state `0x11/0x12` to the app or probe, and never forge, modify, replay, or upload a
+    license. A later state experiment requires a genuine type-6 record, exact pre/post readback,
+    bounded rollback, and independent motor-on RF observation.
+22. The legacy `0x11/0x11` license-inventory request timed out on both direct-aircraft and RC 2
+    proxy routes while immediate fixed positive-control GETs succeeded on both. Treat this command
+    as unavailable on the current live product, not as an empty inventory. Recover the current
+    DJI Fly/MSDK pull transport before extending the read-only probe; do not probe adjacent command
+    IDs or infer a modern route from numbering alone.
+23. MSDK 5.18's current pull path is FC serial -> `queryFCLicensesJni` ->
+    `native_QueryLicenseFromFC(productId, deviceId)` -> `ModuleMediator::QueryLicenseFromFC`, and
+    it returns a whole `FlysafeLicenseGroup` that can contain RID licenses. Its public API/result
+    model is not the legacy indexed-record model; the exact queued-task wire message remains
+    unresolved and could still reuse a numeric command tuple. Do not feed
+    group bytes to the legacy parser or guess its command/payload. Current DJI Fly 1.21.10 proves
+    only that generic license UI/JNI symbols are packaged, not a type-6 RID UI or entitlement.
+    The executable 1.21.4 prior version recognizes only types 0--4/255 and can mis-handle type 6;
+    never use that generic UI label/switch as proof of RID semantics.
 
 ## Concurrency and state ownership
 
@@ -213,17 +240,24 @@ RC 2 package.
 
 For the recovered RID policy parameters, FLYC `0x03/0xF7` is metadata GET, `0x03/0xF8` is value
 GET, `0x03/0xF9` is write, and `0x03/0xFA` is reset. Keep `0xD7757AD2` and `0xF80992FE`
-observation-only. A read-only probe must be hard-allow-listed to F7/F8 and those hashes. A
-`LIBUSB_ERROR_ACCESS`/claim failure while Assistant is active means no request was sent; do not
-misreport it as protocol failure. Never add F9, FA, a generic hash reader, or a guessed value width
+observation-only. A read-only probe must be hard-allow-listed to F7/F8 and those hashes. The live
+Mini 5 Pro returned only the one-byte F7 payload `0x03` for both candidates over direct and
+RC-routed plaintext paths, while known height/distance parameters succeeded on the same RC route;
+legacy SIMPLE encryption produced no matching response. Treat both candidates as unavailable on
+the live FC metadata surface, do not send F8 or F9 for them, and do not assign an exact enum name
+to `0x03` without new evidence. DJI Fly's UAV139/wa150 abstraction dynamically registers both
+mappings; that application-side registration does not override the endpoint's missing metadata or
+prove a parameter is enabled. A `LIBUSB_ERROR_ACCESS`/claim failure while Assistant is active
+still means no request was sent. Never add F9, FA, a generic hash reader, or a guessed value width
 to product code.
 
 Public F8 response layouts conflict even within the pinned prior art: `dji-firmware-tools` plus
 DJI-Link's runtime parser/RTH notes use `[status][hash][value]`, while DJI-Link's `PARAM_WIRE.md`
-uses `[hash][value]`. Until a current callback or capture resolves the live build, preserve the raw
-reply, look for the requested hash at offset 0 or 1, and accept a layout only after route, sequence,
-F7 type/size, echoed-hash, and total-length checks. Never select a variant merely because one parser
-returns a plausible Boolean.
+uses `[hash][value]`. Current DJI Fly 1.21.10 native code resolves its own callback as
+`[batch_status][hash][value:cached_size]...`; value size/type come from cached FC metadata. Require
+that exact layout for this build plus route, sequence, requested hash, known metadata, total length,
+and an exact final cursor. Treat an offset-zero hash layout as a separately identified legacy
+variant only; never auto-select it merely because one parser returns a plausible Boolean.
 
 The public-prior-art audit found neither a fully reproducible no-root base/split export for this
 exact RC331 build nor a successful plaintext recovery of its exact `10.00.0700/0200` FLYA. Android

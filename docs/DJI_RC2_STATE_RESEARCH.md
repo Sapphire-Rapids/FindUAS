@@ -52,7 +52,7 @@ There is no Wi-Fi or BLE scanner in this path. A normal DJI Fly status is a pre-
 and aircraft-reported state; it is not independent proof that another receiver can receive the
 over-the-air Remote ID messages.
 
-The raw push is serialized in this order:
+At the application/JNI object boundary, `RidWorkingStatusPushMsg` is serialized in this order:
 
 ```text
 u8 isEidSupport
@@ -65,9 +65,21 @@ int32 LE failResion
 int32 LE failReason
 ```
 
-Both failure fields must be retained. DJI Fly's FlyModel wrapper exposes the final `failReason`,
-but the MSDK 5.18.0 artifact's retained US industrial strategy reads the misspelled `failResion`.
-Treating the first value as disposable loses information preserved by another official DJI path.
+That is **not** the raw DUML payload layout. Current official native handler analysis closes the
+aircraft push itself as exactly seven bytes on command set `0x11`, command `0x1C`:
+
+| Raw position | Meaning recovered from the native handler |
+| --- | --- |
+| little-endian `u16` bits 1 / 0 | EID supported / RID supported |
+| little-endian `u16` bits 9 / 8 | EID normal / RID normal |
+| bytes 2--5 | signed 32-bit value passed to `GetAreaCodeStrByValue(int)` |
+| byte 6 | one failure byte copied into both `failResion` and `failReason` |
+
+Both higher-level failure fields must still be retained for API compatibility, but this build
+derives both from the same raw byte. DJI Fly's FlyModel wrapper exposes the final `failReason`,
+while the MSDK 5.18.0 artifact's retained US industrial strategy reads the misspelled
+`failResion`. The exact area-number-to-country table remains unresolved, so a listener must report
+the signed raw area value rather than guess an ISO code.
 
 ### Public MSDK working states
 
@@ -205,12 +217,58 @@ consumer replaces the aircraft SN in the Japanese web-registration initializatio
 application is in its internal/develop state. No link to `KeyRidWorkingStatusPush`, `isRidNormal`,
 PFST, or over-the-air transmission was found.
 
-The official FlySafe model includes `RID_UNLOCK`; current code recognizes European and China
-types. The retained default-delegate body, located after a leading stub return, accepts only an
-enabled license matching the current area strategy and would then report broadcasting disabled and
-state `NO_BROADCAST`. This is structural evidence for a possible managed authorization path, not
-proof that the provided stubbed artifact executes the branch or that it is a locally generated
-debug toggle.
+The official FlySafe model includes `RID_UNLOCK`. DJI's published Cloud API assigns it license type
+6 and defines level 1 as EU RID unlock and level 2 as China RID unlock. The documented MSDK trust
+flow requires DJI-account login, server download of signed licenses, filtering against the flight
+controller serial, push/pull synchronization, and explicit enable/disable of the selected license.
+The retained default-delegate body, located after a leading stub return, accepts only an enabled
+license matching the current area strategy and would then report broadcasting disabled and state
+`NO_BROADCAST`. The consumer delegate-selection path has no general Mini 5 Pro exclusion. This is
+the strongest current candidate for a stable, managed laboratory exception, but it is still static
+evidence: no type-6 license has yet been observed on this aircraft and no RF behavior has been
+verified.
+
+An older DJI-Link command model independently exposes aircraft license inventory through plaintext
+ADS-B/FlySafe `0x11/0x11` with a one-byte record index. The reply contains total count,
+enabled/valid state, type, and level; privacy-bearing license content is unnecessary and must be
+discarded. Neighboring `0x11/0x10` uploads a license and `0x11/0x12` changes enabled state. Only the
+read command is allowed in the current work-only probe. No license may be forged, replayed, uploaded,
+or toggled until a genuine RID record, exact readback, rollback, and motor-on external RF test plan
+have all been established.
+
+The bounded live check did not receive a matching response to `0x11/0x11` through either direct
+aircraft USB or the RC 2 proxy. This was not a general link failure: immediately afterward the
+direct path returned FC area `CN`, while the RC 2 path returned Sky and Ground country `CN`, all with
+the established `0x80` response type. Do not interpret the license timeouts as an empty inventory.
+They instead show that this legacy query is unavailable on the current live route and make recovery
+of DJI Fly/MSDK's current queued-task wire transport the next read-only step.
+
+That current MSDK 5.18 outer route is now closed. `pullFlyZoneLicensesFromAircraft` first obtains
+the flight-controller serial and then follows:
+
+```text
+queryFCLicensesJni
+  -> native_QueryLicenseFromFC(productId, deviceId)
+  -> ModuleMediator::QueryLicenseFromFC
+  -> queued native task
+  -> whole FlysafeLicenseGroup result
+```
+
+The group model has an explicit RID-license collection and level field. This is structurally
+different from a one-byte legacy record index and an 80-byte record; the formats must never share a
+parser. Native dispatch checks a mediator readiness bit, and product/device values participate in
+the query. The queued task's exact transport, message ID, payload, ACK, and product/version gates
+remain unresolved, so no modern raw command has been guessed or sent.
+
+The DJI Fly UI/account evidence must also stay versioned. The protected official 1.21.10 artifact
+retains generic account-license/aircraft-license UI and JNI symbol names, but currently provides no
+recovered type-6-specific UI, download, or consumer-entitlement proof. The closest executable
+public prior version, 1.21.4, recognizes only license types 0--4 and 255; numeric type 6 becomes
+`UNKNOWN` and can fall through to polygon parsing/labels. Its generic license switch cannot be
+identified as an RID switch. In that prior flow, login plus network gates server refresh of signed
+account licenses. Reading the FC inventory and displaying its enable state are not directly gated
+by account login, while import is gated by exact group-SN/current-FC-SN matching and the native
+current-device context.
 
 `IsEuCeEnableC0Rid` does have a recovered business caller. `UAVC0EuRidCloudControlLogic` reads the
 `EU_BUCKET_COEXIST_C0_RID` cloud namespace, checks whether the current area is in its
@@ -394,6 +452,14 @@ parameters, and the FLYC `0x03/0xF7` metadata GET, `0x03/0xF8` value GET, and `0
 plus `0x03/0xFA` reset transports. This closes the general native-family gap while leaving exact
 embedded-RC version parity unresolved. The APK and native library remain outside the repository.
 
+The adjacent controller product table maps `wa150` to drone type 139, and the current native
+UAV139 abstraction dynamically installs both RID-policy FCConfig mappings. Its F8 callback parses
+`[batch_status][hash:u32le][value:cached_size]...`; F9 builds
+`[hash:u32le][value:cached_size]...`, and its success callback checks only the first ACK status
+byte. Size/type come from the initialized FC config cache. This closes an application-side mapping,
+not aircraft availability: a zero F9 ACK would still require F8 readback, working-status change,
+and independent RF confirmation.
+
 The selected vendor image contains the preinstalled `com.dpad.fuli` development assistant. It uses
 `android.uid.system` and its internal command UI forwards entered text to `Runtime.exec(...)`.
 System UID is not root UID 0; the app's attempt to run `adb shell su` is not evidence that `su`
@@ -520,14 +586,21 @@ format, channel set, or transmit power changed.
 `KeyRidWorkingStatusPush` is get/listen-only and can be resolved at the Java/native API boundary to
 the complete key tuple `(product=0, component=4, index=0, subcomponent=65534,
 subindex=65534, identifier="RidWorkingStatusPush")`. A current official DJI Fly native library now
-maps it to ADS-B/RID command set `0x11`, command `0x1C`. The native pack begins with little-endian
-support/working flags and uses region/product-specific bit interpretations; the remaining raw bytes
-are not fully named. DJI-Link's committed DJI Fly 1.21.4 telemetry table independently corroborates
+maps it to ADS-B/RID command set `0x11`, command `0x1C`. The current native handler consumes exactly
+seven raw bytes using the flag, area-value, and failure-byte layout above. DJI-Link's committed DJI Fly 1.21.4 telemetry table independently corroborates
 the route and US bit 0, Cloud bit 10, EU bit 11, and France bit 13, with product fallbacks. The
 command is now a strong static subscription target, but it is still a
 push/status source rather than a setter. Its
 absence from a passive IF4 window is not evidence that RID is unsupported: the stream may start
-only after `UAVKeyManager.listen(...)` establishes a subscription.
+only after `UAVKeyManager.listen(...)` establishes a subscription or after an aircraft state
+transition.
+
+After Assistant's USB services were closed, a strict read-only listener completed one 15-second
+aircraft baseline and one 20-second concurrent aircraft/RC 2 baseline with the motors stopped.
+Across the concurrent run it validated 158 aircraft frames and 82 RC 2 frames, but neither path
+contained a `0x11/0x1C` candidate. No raw payload, UAS ID, location, or serial was retained. This is
+a valid quiet baseline, not a negative capability result; the external detector was offline and
+the user reports that this aircraft begins actual RID transmission only after motor start.
 
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus
@@ -542,23 +615,24 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. Close DJI Assistant 2 normally, then retry only the allow-listed F7/F8 metadata/value reads for
-   hashes `0xD7757AD2` and `0xF80992FE`. The existing probe has no F9 path; its first attempt sent no
-   request because `claimInterface` returned `LIBUSB_ERROR_ACCESS` while Assistant was active.
+1. Recover only the queued task/message builder behind MSDK 5.18
+   `ModuleMediator::QueryLicenseFromFC`, or obtain a legitimate current-session SDK inventory
+   result. Determine its exact transport, message ID, request/ACK framing, and product/version
+   gates without guessing adjacent raw commands or reusing the legacy record parser.
 2. Use current official DJI Fly 1.21.10 for handler-level static mapping. Export the live
    controller's package-manager public base/split APKs only if exact embedded-build parity is
    needed. Do not repeat the exhausted public-key sweep over `0200`, and do not root or unlock it.
 3. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
-4. Establish a read-only official-runtime listener for `KeyRidWorkingStatusPush` / `0x11/0x1C`,
-   retaining the raw native pack, both higher-level failure fields, and HMS 30331--30334.
+4. Use the completed strict `0x11/0x1C` parser as the reference for an official-runtime
+   subscription experiment, retaining only redacted parsed fields plus both higher-level failure
+   names and HMS 30331--30334. First capture one real Mini 5 Pro frame to confirm command type,
+   sender, receiver, and the seven-byte layout on this product.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
 6. On an explicitly supported product/region, confirm the recovered `KeyEIDSwitch` `0x03/0x77`
-   GET response before considering any authorized set/readback test; separately recover
-   current-product F7 metadata for `IsEuCeEnableC0Rid`, RID working-status subscription, and
-   aircraft binding without
-   probe-writing them.
+   GET response before considering any authorized set/readback test. Keep aircraft/session binding
+   explicit and do not conflate this France-only EID surface with ordinary RID.
 7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
    [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext
@@ -568,6 +642,7 @@ the remaining probes are read-only.
 
 - [DJI MSDK V5 `IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
 - [DJI MSDK V5 `IFlyZoneManager` / `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
+- [DJI Cloud API FlySafe license schema and `RID_UNLOCK` levels](https://developer.dji.com/doc/cloud-api-tutorial/en/api-reference/dock-to-cloud/mqtt/dock/dock3/flysafe.html)
 - [DJI MSDK V5.18.0 aircraft-provided artifact](https://repo1.maven.org/maven2/com/dji/dji-sdk-v5-aircraft-provided/5.18.0/dji-sdk-v5-aircraft-provided-5.18.0.jar)
 - [DJI FAA Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI account/offline-limit support note](https://repair.dji.com/help/content?customId=en-us03400011758&pbc=mF6h4ZTt&spaceId=34)
