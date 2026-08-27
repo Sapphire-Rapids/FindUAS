@@ -45,7 +45,7 @@ Official controller packages `10.00.0700` and `10.00.0800` each contain four mod
 | `0200` | `12.14.13.85`, 454,223,680 B | `12.18.16.30`, 468,098,688 B | verified outer APP and protected inner FLYA; inner PRAK/TBIE boundary remains |
 | `0205` | `00.01.14.99`, 985,959,104 B | `14.00.00.04`, 985,790,560 B | Android/Qualcomm A/B base-system OTA |
 | `0600` | `10.06.00.50`, 108,640 B | identical | RC MCU; unchanged and not the primary adjacent RID/account candidate |
-| `1400` | `10.00.19.01`, 25,644,608 B | identical | exact role unresolved; unchanged and lower priority |
+| `1400` | `10.00.19.01`, 25,644,608 B | identical | RC ground-side `SPARROW_GND`/Sparrow2 radio image family; unchanged |
 
 ## Verified `rc331/10.00.0700/0200` outer boundary
 
@@ -257,8 +257,14 @@ MD5 values. Only these records changed:
 | `0802` | `10.00.12.83`, 679,368,672 B, anti 1 | `10.00.15.17`, 679,295,296 B, anti 2 | IMaH type `E3`; main-system candidate; about 98% of the package |
 | `2603` | `01.00.00.01`, 436,000 B | `01.05.03.01`, 437,312 B | IMaH type `GNSS`; filename identifies the UC6580 GNSS platform |
 
-The four official module files were downloaded into an external analysis directory. Each matched
-the exact package-config size and MD5 and was then made read-only. Additional SHA-256 values are:
+The eight unchanged records are six `1100` battery variants, one `1200` ESC image, and the single
+`0806` image discussed below. This inventory leaves no separate changed Wi-Fi/Bluetooth/Remote-ID
+module to patch in isolation; any new 0600-to-0700 RID logic is most likely inside `0802`, while a
+runtime policy or unchanged radio component could still consume it.
+
+The four version-targeted `0802`/`2603` module files were downloaded into an external analysis
+directory. Each matched the exact package-config size and MD5 and was then made read-only.
+Additional SHA-256 values are:
 
 | Package/module | SHA-256 |
 | --- | --- |
@@ -269,7 +275,7 @@ the exact package-config size and MD5 and was then made read-only. Additional SH
 
 ## Container and trust boundary
 
-All four files begin with `IM*H` and use format 2, `PRAK` authentication, `STUE` encryption, one
+Those four files begin with `IM*H` and use format 2, `PRAK` authentication, `STUE` encryption, one
 chunk, and a 384-byte signature. The two `0802` headers report type `E3`; the two `2603` headers
 report type `GNSS`. The `0802` anti-version changed from 1 to 2 between packages, matching the
 filename change from `.ar1` to `.ar2`. The official meaning of the filename suffix itself remains
@@ -284,6 +290,45 @@ it would continue with encrypted/unverified chunk data, not produce verified pla
 This is the current firmware blocker. Obtaining a binary is no longer the problem; obtaining a
 lawful, reproducible, integrity-checked plaintext view of `0802` is.
 
+### Read-only auditor positive controls
+
+The external work tree now has a read-only IMaH auditor that validates declared sizes, the payload
+SHA-256, the v2 encrypted-data checksum, and the RSA signature over the header plus chunk table. It
+does not extract, decrypt, modify, repack, transfer, or flash firmware. The same code successfully
+verified both official RC 2 positive controls: the `0200` outer APP and `0205` QCS6 OTA pass their
+payload/checksum checks and verify with public `PRAK-2020-01`; both outer chunks are plaintext.
+All five downloaded WA150 files consistently stop at the target-specific PRAK/STUE boundary. This
+rules out a generic parser failure as the reason WA150 cannot currently be patched.
+
+Static inspection of the installed Assistant 2 adds a separate negative result. Its legacy DA2
+verifier copies a `0x20c` public-key structure for a 2048-bit key and passes a fixed `0x100`-byte
+signature to its RSA verifier. WA150 uses a `0x180`-byte/3072-bit signature. That embedded verifier
+therefore does not supply the matching WA150 key, an STUE content key, or any private signing key.
+The Mac being able to download and transfer a package is not evidence that it can decrypt or
+re-sign the package; the modern target trust chain may perform the decisive verification.
+
+### Assistant readback audit
+
+The installed retail Assistant 2 build was also checked for a no-write route from a live WA150 to
+an `0802/E3` plaintext image. WA150's product configuration and native services do implement an
+end-to-end log/data-export flow: the device is asked to enter an export mode, then explicitly
+offered log directories and files can be listed and downloaded through the product's FTP/file
+service. No corresponding partition, block, upgrade-slot, running-image, or `0802` readback handler
+was found. This means the official export flow may later provide useful RID diagnostics, but it is
+not evidence of arbitrary filesystem access or decrypted firmware extraction.
+
+The front end also contains `ReadFlashData` under an `/esc/config/` route. It is grouped with ESC
+configuration, erase, selection, and motor-test functions; the installed native services contain
+no matching WA150 handler or `0802` binding. It is therefore a generic or legacy ESC UI surface,
+not a demonstrated aircraft-main-system readback API. Firmware-download and cryptographic helper
+code likewise belongs to the inbound upgrade path and does not form the missing reverse chain:
+
+```text
+live 0802 partition -> authenticated readback -> host-side decryption -> verified plaintext image
+```
+
+No Assistant binary or device service was launched for this audit, and no device mode was changed.
+
 ## Why `0802` is the primary RID candidate
 
 Direct evidence rules out `2603` as the primary RID service:
@@ -292,6 +337,37 @@ Direct evidence rules out `2603` as the primary RID service:
 - its filename identifies UC6580, a GNSS receiver platform;
 - GNSS can supply position, velocity, and time and can affect RID pre-flight self-test, but it does
   not provide the aircraft's Wi-Fi or Bluetooth broadcast path.
+
+The package-identical `0806` module was also downloaded once through the same target-locked,
+download-only path and independently matched its official 12,251,264-byte size and MD5. Its local
+SHA-256 is `75bc1b74a0d46a43aa4099fc9f4570087e99c12298985528b5e961c712d1dfbc`.
+The IMaH header directly identifies its type as `DONG`; the filename includes `4GG4CN`. It is also
+a single STUE-encrypted, 384-byte-PRAK-signed chunk with no matching public key material. This is
+stronger evidence for an optional communication-dongle role than for the aircraft's primary RID
+service, and it does not provide a plaintext route around `0802`.
+
+The published 2023 S1/Sparrow `SDRH` signature bypass is not presently transferable evidence. That
+work used unsigned runtime patch records accepted by the older S1 transceiver boot chain and
+verified the issue on Mini 2-era hardware; the same paper explicitly found a different Mavic 3
+transceiver unaffected by that signature bypass. No WA150 metadata, downloaded module header, or
+current public sample has shown `sparrow_firmware`, an `SDRH` record, or an unsigned post-verify
+patch loader. Treating the old technique as an O4/WA150 method without those prerequisites would be
+guessing at a boot-critical path.
+
+A separate static audit of the RC 2 Sparrow2 components closes another tempting shortcut. The
+controller's `dji_sdrs_agent` is a ground-side (`SPARROW_GND`, module `1400`) transport orchestrator:
+it selects the aircraft-compatible ground-radio image, invokes `brload`, and then invokes fixed
+`fastboot flash` operations. Package verification occurs earlier in the Android upgrade framework,
+while the Sparrow2 Boot ROM/bootloader remains the final image-acceptance boundary. The agent is not
+a signing or decryption oracle, and its WA150 compatibility directory is not an aircraft `0802`
+plaintext copy.
+
+No `SDRH` or equivalent runtime-patch descriptor was found in the complete inspected RC system and
+vendor artifacts. An unsigned-package branch is gated by secure-debug state, with no evidence that
+a retail controller or aircraft can enter that state. Existing file and crash-dump channels expose
+named files, logs, or diagnostics rather than a safe decrypted aircraft image. Manufacturing flows
+that write `cmpu_ver`, `cmpu_kdr`, `cmpu_pro`, or OTP before a staged transfer are not read-only and
+must not be used for exploratory recovery; they can alter production or key state irreversibly.
 
 `0802` is the stronger candidate because it dominates the package, is typed as `E3`, and adjacent
 DJI aircraft research identifies this module family as a main OS image containing system/vendor
@@ -325,42 +401,83 @@ The size remained 679,295,296 bytes, but:
   `dafe2c69e0ccf5ebeeaed2e9fd894f3ee3ac997453bc2b247c499aefe64a3fff`;
 - the computed encrypted-payload SHA-256 changed to
   `030e351077962169afb6e377d2d6d8cd2513c8d7cd2892c0f9245503e459be60`, while the original digest
-  remained in the IMaH header.
+  remained in the IMaH header;
+- the computed encrypted-data checksum changed from the declared `0x81949d7d` to `0x81949d7c`.
 
-This proves failure at both the Assistant package MD5 and internal payload-digest layers. It is not
-an RID patch and does not by itself prove an RSA verification result, because no matching public
-`wa150` PRAK key is available to validate the original signature. The experiment did not repair checksums,
-re-sign, repack, transfer, or flash the file.
+This proves failure at the Assistant package MD5, internal payload-digest, and encrypted-data
+checksum layers. Recomputing the two internal fields would still change the signed header and
+require the unavailable matching private key. It is not an RID patch and does not by itself prove
+an RSA verification result, because no matching public `wa150` PRAK key is available to validate
+the original signature. The experiment did not repair checksums, re-sign, repack, transfer, or
+flash the file.
 
-## Modern FlySafe license route is the next native target
+## Modern FlySafe license query and enable paths
 
-The official MSDK 5.18 implementation does not instantiate or expose the legacy indexed
-`DataWhiteListRequestLicense` API/model when pulling aircraft licenses. Its current outer chain is:
+The official MSDK 5.18 implementation has now been followed from its public/JNI entry through the
+current native PackProvider map and version-specific sessions. Its outer query chain is:
 
 ```text
 FC serial
   -> queryFCLicensesJni
   -> native_QueryLicenseFromFC(productId, deviceId)
   -> ModuleMediator::QueryLicenseFromFC
-  -> queued native task
-  -> whole FlysafeLicenseGroup
+  -> queued product/device resolver
+  -> GetUnlockSupported + GetUnlockVersion
+  -> V2 / V3 / V4 query session
+  -> PackProviderImpl
+  -> dji::sdk::send_data
+  -> accumulated whole FlysafeLicenseGroup
 ```
 
-The group model can carry a dedicated RID-license collection and level. Native dispatch checks a
-mediator readiness bit and carries product/device values, but the exact queued task's transport,
-message ID, payload, ACK, and version/product gates are not recovered; native code could still
-reuse the same numeric cmdset/cmdid with a different transaction shape. In the local MSDK 5.18
-`libdjisdk_jni.so`, the remaining target is the task constructed by
-`ModuleMediator::QueryLicenseFromFC` at VA `0x1c0f8c0`, using vptr/data table `0x38d9a00` and
-scheduler target `0x3883720`. Recover its `operator()`/message builder rather than searching or
-probing neighboring raw command IDs.
+The exact native samples used for the current mapping are independently identified as:
 
-This direction is independently consistent with the live result: legacy `0x11/0x11` timed out on
-both direct and RC 2 proxy routes, while immediate area/country positive controls succeeded. It is
-an endpoint mismatch, not an empty-inventory result. Current DJI Fly 1.21.10 package strings prove
-only that a generic license UI/JNI subsystem is present; they do not prove a type-6 UI, server
-entitlement, or Mini 5 Pro support. The executable DJI Fly 1.21.4 prior version recognizes only
-license types 0--4/255 and can mis-handle type 6, so its generic switch is not usable RID evidence.
+| File | GNU Build ID | SHA-256 |
+| --- | --- | --- |
+| `libdjisdk_jni.so` | `28ce8986e0fdd02a30ebe2f3c66b77a33ec8f931` | `27402f45c63bf6ea9e8d3a783fc1202b53631e0ee24cc18a938ba1e91629dbcf` |
+| `libDJIFlySafeCore-CSDK.so` | `5e89d17659059297b200b1de47e328183845636f` | `1749d31c8ececb15b3da7c07a967ac9946ac05a0aaffd9e3d3840bd7db09e1ed` |
+
+The current binary's own static PackType table gives direct, not inferred, mappings:
+
+| Operation | PackType | Current tuple | Meaning |
+| --- | ---: | --- | --- |
+| query inventory | `0x38` | `11 11 00 01` | cmdset `0x11`, cmdid `0x11`, unknown byte `0`, ACK result byte present |
+| set license enable | `0x39` | `11 12 00 01` | cmdset `0x11`, cmdid `0x12`, unknown byte `0`, ACK result byte present |
+
+The query endpoint therefore reuses numeric `0x11/0x11`; a different command number is not needed
+to explain the old live timeout. The current session contract contains several other variables:
+
+- V2 query uses a one-byte zero-based record/page index;
+- V3/V4 send `00 01` for group info and then `00 (index << 1)` per record;
+- V3/V4 group info and licenses are protobuf messages, with a separate status byte on each record;
+- support and version gates select V2/V3/V4 before sending;
+- receiver route can be product- and version-dependent rather than the hand-written probe's route;
+- PackProvider removes the ACK's first result-code byte before passing the remainder to the parser.
+
+Because V2 itself uses a one-byte index, this static recovery does not identify which variable
+caused the earlier hand-built requests to time out, nor does it establish that Mini 5 Pro selects
+V2, V3, or V4. That requires a legitimate current-session support/version result and receiver route.
+
+The protobuf union has a dedicated RID field; the domain type is `RID_UNLOCK == 6`, its RID payload
+contains `level`, and each returned record carries invalid/enabled/in-valid-date status. The
+official MIT sample independently displays `RID_UNLOCK`/`ridUnlockType` and enables or disables an
+existing license before pulling the list again. This makes the enable state of a genuine signed
+type-6 record the strongest current candidate for a stable laboratory switch. It does not create,
+forge, upload, or entitle such a record, and MSDK 5.18 does not list Mini 5 Pro as an officially
+supported product.
+
+The set-enable path is also statically closed through its manager gate, V2/V3/V4 builders,
+PackProvider, `dji::sdk::send_data`, and ACK parser. V2 uses six payload bytes containing a
+little-endian license ID, a Boolean byte, and one zero byte. V3/V4 use seven bytes containing a
+leading zero byte, little-endian license ID, `1` for enable or `2` for disable, and a trailing zero
+byte. These layouts are deliberately not implemented as a sender here: no current Mini 5 Pro ACK,
+genuine type-6 record, rollback, or independent RF effect has yet been verified. A returned
+per-item Boolean is not proof that Remote ID was emitted or silenced.
+
+The read path's recovered local call graph contains no explicit DJI-account-login check. That
+narrow negative result does not cover cloud license download, entitlement, binding, upload, or
+firmware-side policy. Current DJI Fly 1.21.10 package strings likewise prove only that a generic
+license subsystem is present. The executable DJI Fly 1.21.4 prior version recognizes only license
+types 0--4/255 and can mis-handle type 6, so its generic label or switch is not usable RID evidence.
 
 ## Handoff sequence
 
@@ -371,8 +488,9 @@ license types 0--4/255 and can mis-handle type 6, so its generic switch is not u
    Export the live controller's public `dji.go.v5` base/splits only when exact RC-build parity is
    needed; this remains a no-root package-manager task.
 3. Aircraft track: seek an authorized read-only plaintext source for `wa150/0802`; do not treat
-   forced extraction as validated output. If plaintext becomes available, inventory nested
-   containers before extraction and diff 0600/0700 by file hash.
+   forced extraction, Assistant log FTP, `/esc/config/ReadFlashData`, RC ground-Sparrow images, or
+   manufacturing `get_staged` flows as validated output. If plaintext becomes available, inventory
+   nested containers before extraction and diff 0600/0700 by file hash.
 4. Correlate any static finding with the read-only RID status/HMS timeline and an independent RF
    receiver. Aircraft self-report alone is not proof of OTA transmission.
 5. Do not unlock the current controller bootloader, root/Magisk-patch it, modify boot, flash it, or
@@ -381,11 +499,16 @@ license types 0--4/255 and can mis-handle type 6, so its generic switch is not u
 6. Do not repeat the completed RID-policy hash probes: both fixed candidates returned unavailable
    F7 status on live direct/RC routes while known positive controls succeeded. Never escalate to F9
    by guessing a value type.
-7. Continue only at the fixed modern FlySafe queued-task target above, or obtain a legitimate
-   current-session SDK query. Do not retry the legacy inventory command, feed group bytes to its
-   record parser, or guess a modern message ID.
+7. The modern query and set-enable schemas are now statically closed. The next dynamic step, if
+   separately staged in the work tree, is read-only: obtain the legitimate current-session support
+   and version state, reproduce the matching receiver route, and inventory only redacted type,
+   level, enable, and validity fields. Do not retry the legacy one-byte request outside a proven V2
+   session or feed V3/V4 group bytes to the legacy parser.
 8. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
    control in FindUAS.
+9. Do not invoke Sparrow2 `brload`/`fastboot`, replace `bootarea.img`, touch modem/NVRAM images, or
+   execute `cmpu_*`/OTP production scripts. None is a proven readback path, and some can be
+   irreversible.
 
 ## Repository hygiene and known traps
 
@@ -412,6 +535,9 @@ license types 0--4/255 and can mis-handle type 6, so its generic switch is not u
 - [DJI Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)
 - [DJI Mobile SDK Android V5](https://github.com/dji-sdk/Mobile-SDK-Android-V5)
+- [MSDK 5.18 FlySafe sample model](https://github.com/dji-sdk/Mobile-SDK-Android-V5/blob/a48aa4e7811d824c27abfa973f5655579bfb8a77/SampleCode-V5/android-sdk-v5-sample/src/main/java/dji/sampleV5/aircraft/models/FlySafeVM.kt)
+- [MSDK 5.18 RID license display and enable UI](https://github.com/dji-sdk/Mobile-SDK-Android-V5/blob/a48aa4e7811d824c27abfa973f5655579bfb8a77/SampleCode-V5/android-sdk-v5-sample/src/main/java/dji/sampleV5/aircraft/pages/FlySafeFragment.kt)
+- [NDSS 2023 DJI firmware/DroneID study](https://www.ndss-symposium.org/ndss-paper/drone-security-and-the-mysterious-case-of-djis-droneid/)
 - [Nozomi Networks: DJI Mavic 3 firmware analysis](https://www.nozominetworks.com/blog/dji-mavic-3-drone-research-part-1-firmware-analysis)
 - [`dji-firmware-tools`](https://github.com/o-gs/dji-firmware-tools)
 - [`dji-firmware-tools` F7/F8/F9 dissector](https://github.com/o-gs/dji-firmware-tools/blob/195692263c2684cf1ddc4995f2736be6c0fb135e/comm_dissector/wireshark/dji-dumlv1-flyc.lua)

@@ -29,8 +29,18 @@ stable releases begin.
   matching ACK and left readback at CN. These are not described as a complete region, Remote ID,
   channel, or RF-power change.
 - Documented the DJI Assistant 2 `wa150`/`rc331` package inventory, the `0802` main-system and
-  `2603` GNSS module evidence, and the corrected distinction between IMaH parser support and missing
-  target PRAK/STUE material.
+  `2603` GNSS module evidence, the protected `0806/DONG` LTE candidate, and the corrected
+  distinction between IMaH parser support and missing target PRAK/STUE material. A one-byte
+  non-flashable `0802` integrity sample demonstrates package-MD5, payload-digest, and encrypted-
+  checksum breakage. Format analysis maps the changed header fields into the signature coverage,
+  but no matching WA150 public key was available for offline signature verification and no target
+  acceptance or rejection behavior was exercised. No patch was transferred or flashed.
+- Audited retail Assistant readback and RC 2 Sparrow2 loading. WA150's implemented export surface
+  is diagnostic log/data FTP rather than `0802` plaintext readback; the ESC `ReadFlashData` UI has
+  no discovered WA150 backend. The ground-side chain is Android upgrade-framework package checking,
+  agent-orchestrated `brload`/fastboot transfer, and final target Boot ROM/bootloader acceptance,
+  with no discovered retail unsigned patch gate or safe aircraft-image readback. No vendor binary
+  was executed, and no device mode, loader, fastboot, manufacturing script, or device write was used.
 - Recorded no-force verification of the official adjacent `rc331/10.00.0700/0205` Android OTA, its
   29-partition inventory, the system-UID/non-root development-assistant boundary, and the decision
   to reject bootloader unlock/root on the current controller. No firmware, APK, extracted partition,
@@ -55,15 +65,18 @@ stable releases begin.
   FLYA; root and bootloader unlock therefore remain outside the next-step path.
 - Identified DJI's official signed FlySafe `RID_UNLOCK` license as the leading stable-control
   candidate: published type 6 with EU/China levels, account download, FC-SN filtering, push/pull,
-  and license enable/disable semantics. Documented a privacy-redacted, read-only `0x11/0x11`
-  inventory check and explicitly excluded neighboring upload/toggle commands and license forgery.
+  and license enable/disable semantics. Documented a privacy-redacted, read-only inventory check
+  and explicitly excluded license upload, forgery, replay, and product integration of a setter.
 - Recorded that the legacy inventory request timed out through both direct-aircraft and RC 2 proxy
-  routes while immediate FC-area and Sky/Ground-country positive controls succeeded. This is
-  classified as a product/transport mismatch, not an empty license inventory.
+  routes while immediate FC-area and Sky/Ground-country positive controls succeeded. The cause
+  remains unresolved; session, payload, route, and selected license version are possible factors,
+  and the result is not an empty-license-inventory finding.
 - Traced MSDK 5.18's current pull path from FC serial through FlySafe JNI/session mediation to a
-  whole `FlysafeLicenseGroup`, including RID-license model support. Recorded that its exact queued
-  wire message remains unresolved and that DJI Fly 1.21.10 package evidence does not prove a
-  type-6 UI or consumer entitlement; the older executable UI cannot safely label type 6.
+  whole `FlysafeLicenseGroup`, including RID-license model support. Recovered the current native
+  query `PackType 0x38 -> 0x11/0x11` and set-enable `PackType 0x39 -> 0x11/0x12` mappings, the
+  V2/V3/V4 request layouts, support/version and receiver-route gates, ACK result-byte handling,
+  protobuf/status parsing, and enable-result parsing. These are static protocol findings, not
+  evidence that the Mini 5 Pro has a genuine type-6 entitlement or that RF state changes.
 
 ### Security and privacy
 

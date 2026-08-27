@@ -292,32 +292,36 @@ The consumer delegate selection does not contain a general Mini 5 Pro exclusion.
 proves that the provided stubbed artifact executes on this aircraft, that a RID license is already
 installed, or that the RF transmitter becomes silent.
 
-The older DJI command family provides a bounded read-only way to inspect the aircraft-side
-inventory: ADS-B/FlySafe command set `0x11`, command `0x11`, with a one-byte record index. Its
-response exposes total count, enabled/valid state, record type, and level. Research output must
-redact license ID, account/device identifiers, description, timestamps, coordinates, and raw
-payloads. Adjacent command `0x10` uploads a license and `0x12` changes its enabled state; neither may
-be called by the inventory probe or added to FindUAS. A future write experiment is justified only
-if a genuine type-6 license is found and must use exact license identity, pre/post pull, a bounded
-rollback, and independent receiver observation after motor start. Never synthesize, modify, forge,
-or replay a license.
+The older DJI command family provides a bounded reference for aircraft-side inventory: ADS-B/FlySafe
+command set `0x11`, command `0x11`, with a one-byte record index. Its response exposes total count,
+enabled/valid state, record type, and level. Research output must redact license ID, account/device
+identifiers, description, timestamps, coordinates, and raw payloads. Upload command `0x10` remains
+excluded. The current MSDK binary independently maps license enable to `0x11/0x12`, but neither that
+command nor any raw generic path may be added to FindUAS. A future write experiment is justified
+only if a genuine type-6 license is found and must use exact license identity, pre/post pull, a
+bounded rollback, and independent receiver observation after motor start. Never synthesize,
+modify, forge, or replay a license.
 
 The strict work-only probe was then exercised once through both the direct-aircraft and RC 2 proxy
 routes. Both fixed `0x11/0x11` requests timed out. Immediate positive controls on the same live USB
 paths still returned FC area `CN` and Sky/Ground country `CN` with response type `0x80`. The timeout
-therefore belongs specifically to this legacy inventory route on the current product; it is not
-evidence that the aircraft is disconnected or that its license inventory is empty. The current
-DJI Fly/MSDK queued-task wire path must be recovered before another inventory claim or any
-enable-state design.
+therefore belongs to those fixed hand-built transactions, but it is not evidence that the aircraft
+is disconnected, that its license inventory is empty, or that V2 is unsupported.
 
-The current MSDK 5.18 pull architecture provides a plausible explanation for the mismatch. Its
-public manager first reads the flight-controller serial, then calls `queryFCLicensesJni`, which reaches
+The current MSDK 5.18 pull architecture provides several possible explanations without selecting
+one. Its public manager first reads the flight-controller serial, then calls
+`queryFCLicensesJni`, which reaches
 `native_QueryLicenseFromFC(productId, deviceId)` and `ModuleMediator::QueryLicenseFromFC`. The
-result is decoded as a whole `FlysafeLicenseGroup`, whose model can contain RID licenses; the public
-API/result model is not the legacy one-index/one-record transaction. A native readiness bit gates
-dispatch before the queued task runs. The exact task message ID, payload, ACK framing, and
-product/version gates are not yet recovered, and native code could still reuse the same numeric
-cmdset/cmdid with a different shape. There is therefore no safe raw replacement command to run.
+result is decoded as a whole `FlysafeLicenseGroup`, while the current native session performs the
+underlying pagination. Its own PackType table directly maps query `0x38` to `0x11/0x11` and
+set-enable `0x39` to `0x11/0x12`; the numeric endpoints are not the missing piece.
+
+The current contract includes a readiness gate, support/version selection, product/version receiver
+route, V2 one-byte indexing or V3/V4 `00 01` group-info plus `00 (index << 1)` paging, an ACK result
+byte, and version-specific record/protobuf parsers. The set-enable V2/V3/V4 builders and result
+parsers are also statically recovered. These findings do not make a safe raw command: a legitimate
+current session, genuine type-6 record, exact readback/rollback, target acceptance, and independent
+motor-on RF observation all remain unverified.
 
 DJI Fly evidence is narrower than the MSDK model. The protected 1.21.10 package still contains the
 generic account-license and aircraft-license JNI/UI names, but no recovered current method body or

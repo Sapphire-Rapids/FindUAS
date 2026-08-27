@@ -231,17 +231,19 @@ verified.
 An older DJI-Link command model independently exposes aircraft license inventory through plaintext
 ADS-B/FlySafe `0x11/0x11` with a one-byte record index. The reply contains total count,
 enabled/valid state, type, and level; privacy-bearing license content is unnecessary and must be
-discarded. Neighboring `0x11/0x10` uploads a license and `0x11/0x12` changes enabled state. Only the
-read command is allowed in the current work-only probe. No license may be forged, replayed, uploaded,
-or toggled until a genuine RID record, exact readback, rollback, and motor-on external RF test plan
-have all been established.
+discarded. Upload `0x11/0x10` remains excluded. The current MSDK binary independently confirms that
+license enable uses `0x11/0x12`, but that static mapping is not permission to send it. No license
+may be forged, replayed, uploaded, or toggled until a genuine RID record, exact readback, rollback,
+and motor-on external RF test plan have all been established.
 
 The bounded live check did not receive a matching response to `0x11/0x11` through either direct
 aircraft USB or the RC 2 proxy. This was not a general link failure: immediately afterward the
 direct path returned FC area `CN`, while the RC 2 path returned Sky and Ground country `CN`, all with
 the established `0x80` response type. Do not interpret the license timeouts as an empty inventory.
-They instead show that this legacy query is unavailable on the current live route and make recovery
-of DJI Fly/MSDK's current queued-task wire transport the next read-only step.
+They show only that the fixed hand-built transaction received no matching response in either tested
+session. Because current V2 also uses a one-byte index, static schema alone cannot identify whether
+the missing prerequisite was version support, route/session selection, payload detail, or target
+availability.
 
 That current MSDK 5.18 outer route is now closed. `pullFlyZoneLicensesFromAircraft` first obtains
 the flight-controller serial and then follows:
@@ -254,11 +256,23 @@ queryFCLicensesJni
   -> whole FlysafeLicenseGroup result
 ```
 
-The group model has an explicit RID-license collection and level field. This is structurally
-different from a one-byte legacy record index and an 80-byte record; the formats must never share a
-parser. Native dispatch checks a mediator readiness bit, and product/device values participate in
-the query. The queued task's exact transport, message ID, payload, ACK, and product/version gates
-remain unresolved, so no modern raw command has been guessed or sent.
+The group model has an explicit RID-license collection and level field. Current native static
+analysis now closes the remaining transport layer:
+
+- query `PackType 0x38` maps directly to tuple `11 11 00 01`, i.e. cmdset `0x11`, cmdid `0x11`,
+  unknown third byte 0, and a separated ACK result byte;
+- V2 uses one-byte indexes, while V3/V4 request group info with `00 01` and page with
+  `00 (index << 1)`;
+- support and version gates choose V2/V3/V4, and product/version can change the receiver route;
+- V3/V4 parse protobuf group/license messages and a separate per-license status bitmap;
+- set-enable `PackType 0x39` maps directly to `11 12 00 01`; its V2/V3/V4 builders and ACK result
+  parser are statically recovered but have not been exercised on this aircraft.
+
+The Java API's whole-group result is therefore compatible with a native paginated wire session;
+it is not compatible with feeding modern bodies to the old fixed-record parser. Product/device
+values select the module and route but are not serialized into the recovered query payload. No
+modern query or enable frame has yet been sent through a proven current session, and no genuine
+type-6 record or RF effect has been observed.
 
 The DJI Fly UI/account evidence must also stay versioned. The protected official 1.21.10 artifact
 retains generic account-license/aircraft-license UI and JNI symbol names, but currently provides no

@@ -101,7 +101,7 @@ Finder 中右键应用并选择“打开”，然后在“系统设置 → 隐�
 | 开始仅本机演练 | 启动有期限的内存态演练及脱敏审计；不会产生 Remote ID 广播 |
 | 停止并回滚 | 立即停止演练并回到自动合规状态；租约到期也会自动回滚 |
 | 读取 DJI 设备状态 | 固定 GET 读取设备存在、FC area、Sky/Ground country；FC 为 FR 时才读取法国 EID |
-| 通用 Remote ID 开关 | 本应用明确不实现：尚未发现并验证通用 setter，法国 EID 不能冒充 FAA/EU/JP/CN 的总开关 |
+| 通用 Remote ID 开关 | 本应用明确不实现：已恢复的 FlySafe type-6 许可启停协议仍无当前机型实机接受、真实许可、回滚与空口验证，法国 EID 也不能冒充 FAA/EU/JP/CN 的总开关 |
 | 法国 EID | 只有 FR-gated 固定状态 GET；没有 setter；不可用不等于关闭 |
 | 地区事务 | 尚未上线：独立研究工具已闭合 FC 与 Sky 的单次事务，Ground 请求未获 ACK；应用仍无 writer，也没有稳定设备对绑定 |
 | FindUAS 接收器卡片 | 只读显示连接、FF01/组帧/解码/拒绝计数、存活目标与包装模式 |
@@ -133,19 +133,24 @@ RID policy 参数名，在这台 Mini 5 Pro 上均未返回可用的 F7 参数�
 
 当前最有希望的稳定开关路线不是这两个参数，而是 DJI 官方定义的 FlySafe `RID_UNLOCK` 签名许可。
 官方资料把它列为许可证类型 6，等级 1/2 分别对应欧盟/中国，并要求经过 DJI 账号下载、飞控序列号
-匹配、推送/拉取和许可启停。研究工具正在恢复当前只读许可证清单路线；在确认 Mini 5 Pro 存在真实许可、
-可以严格读回并能在起桨后由独立接收器验证之前，应用不会伪造许可、调用上传/启停命令，或把它冒充
-已经可用的 Remote ID 开关。
+匹配、推送/拉取和许可启停。当前 MSDK 5.18 的原生查询与启停传输已经完成静态闭合，但还没有在
+Mini 5 Pro 上读到真实 type-6 许可或验证固件接受。在确认许可可以严格读回、启停可自动恢复，并能在
+用户手动起桨后由独立接收器验证之前，应用不会伪造许可、调用上传/启停命令，或把它冒充已经可用的
+Remote ID 开关。
 
-首次实机核验发现，旧版 `0x11/0x11` 许可证清单请求在飞机直连和 RC 2 转发两路都超时；紧接着的
-阳性对照仍能分别读回 FC area=`CN` 与 Sky/Ground=`CN`。这说明设备与 USB 路由在线，但该旧查询
-入口不适用于当前产品，不能据此声称“清单为空”。下一步是闭合当前 DJI Fly/MSDK 的实际拉取协议。
+首次实机核验发现，旧式一字节 `0x11/0x11` 许可证清单请求在飞机直连和 RC 2 转发两路都超时；紧接着的
+阳性对照仍能分别读回 FC area=`CN` 与 Sky/Ground=`CN`。这说明设备与 USB 路由在线，但只证明那组
+手写事务在当时没有收到匹配响应，不能据此声称“清单为空”或“设备不支持 V2”。现代实现复用相同
+数值端点，并显示 support/version、payload、receiver route、session 和 parser 都可能决定结果；尚未
+实机确认 Mini 5 Pro 使用哪一版以及超时发生在哪一层。
 
-静态分析进一步确认，MSDK 5.18 的现代实现会先取得飞控序列号，再通过 FlySafe JNI/session 查询整个
-`FlysafeLicenseGroup`；它的公开 API/结果模型不是旧版逐索引模型，并能表达 `RID_UNLOCK`。但精确
-wire message 仍藏在 native 排队任务中，尚不能排除内部复用同一数值命令。DJI Fly 1.21.10 只能确认通用许可证同步/查询/启停子系统仍被打包，
-尚无 type-6 专用 UI 或服务器 entitlement 证据；可反编译的 1.21.4 界面只识别 type 0–4，会把 type 6
-当作未知项。因此当前仍没有可安全交付的实机 RID 开关。
+静态分析进一步确认，MSDK 5.18 会先取得飞控序列号，再通过 FlySafe JNI/session 查询整个
+`FlysafeLicenseGroup`。当前二进制自己的映射表把 query `PackType 0x38` 直接映射为 `0x11/0x11`，
+把 set-enable `PackType 0x39` 映射为 `0x11/0x12`；V2/V3/V4 的请求布局、能力/版本门控、ACK
+result byte、protobuf/status parser 和启停结果解析也已恢复。DJI Fly 1.21.10 仍只能确认通用许可证
+同步/查询/启停子系统被打包，尚无当前飞机的 type-6 专用 UI、服务器 entitlement 或空口效果证据；
+可反编译的 1.21.4 界面只识别 type 0–4，会把 type 6 当作未知项。因此当前仍没有可安全交付的实机
+RID 开关。
 
 要真正测试其他监测设备的空口兼容性，后续需要独立的受控信号源适配器，例如经验证的
 [OpenDroneID Linux transmitter](https://github.com/opendroneid/transmitter-linux)、
@@ -211,7 +216,9 @@ Application Support：可能包含 UAS/登记标识、接收器标识、厂商�
   仓库也不提供可执行功率修改包；
 - [docs/DJI_RID_FIRMWARE_RESEARCH.md](docs/DJI_RID_FIRMWARE_RESEARCH.md)：`wa150`/`rc331` 的
   Assistant 2 版本清单、`wa150` 目标密钥边界、已验签的 `rc331/0205` Android OTA、已验证外层但
-  内层 PRAK/TBIE 仍封闭的 `rc331/0200`，以及当前官方 DJI Fly native 的 RID 参数/只读传输证据；
+  内层 PRAK/TBIE 仍封闭的 `rc331/0200`、受 PRAK/STUE 保护的 `0806/DONG` 次级模块、不可刷写
+  完整性样本、Assistant 明文回读否定结果、Sparrow2 加载信任链，以及当前官方 DJI Fly/MSDK 的
+  RID 参数、许可查询与启停静态协议证据；
   不属于应用功能，仓库不包含厂商固件、APK、提取分区、下载器、升级器、Root 工具或 Remote ID
   关闭补丁；
 - [docs/REMOTE_ID_COMPATIBILITY_TESTING.md](docs/REMOTE_ID_COMPATIBILITY_TESTING.md)：Remote ID

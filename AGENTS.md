@@ -107,27 +107,30 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     sender/receiver open and fail closed; never persist raw RID status payloads or infer RF
     transmission from an onboard `normal` bit alone.
 21. FlySafe `RID_UNLOCK` is a signed, account/FC-bound license, not a local configuration bit.
-    The completed legacy work-only probe was limited to plaintext `0x11/0x11` record reads and
-    reported only count, enabled/valid, type, and level. It discarded raw payloads, license IDs,
-    descriptions, times, coordinates, account/device identifiers, and serials. Rule 22 now forbids
-    retrying that legacy command on this product. Never add adjacent upload `0x11/0x10` or
-    enable-state `0x11/0x12` to the app or probe, and never forge, modify, replay, or upload a
-    license. A later state experiment requires a genuine type-6 record, exact pre/post readback,
+    The completed legacy work-only probe reported only count, enabled/valid, type, and level and
+    discarded raw payloads, license IDs, descriptions, times, coordinates, account/device
+    identifiers, and serials. Its hand-built one-byte `0x11/0x11` request timed out and must not be
+    resent unchanged; that timeout proves neither an empty inventory nor lack of V2 support. Any
+    later read-only query must first establish support/version and the exact current session and
+    route; only a proven V2 session may use its one-byte index. Never add upload `0x11/0x10` or
+    enable-state `0x11/0x12` to the app, and never forge, modify, replay, or upload a license. A
+    later work-only state experiment requires a genuine type-6 record, exact pre/post readback,
     bounded rollback, and independent motor-on RF observation.
-22. The legacy `0x11/0x11` license-inventory request timed out on both direct-aircraft and RC 2
-    proxy routes while immediate fixed positive-control GETs succeeded on both. Treat this command
-    as unavailable on the current live product, not as an empty inventory. Recover the current
-    DJI Fly/MSDK pull transport before extending the read-only probe; do not probe adjacent command
-    IDs or infer a modern route from numbering alone.
+22. MSDK 5.18's current native map directly resolves query `PackType 0x38` to tuple
+    `11 11 00 01`: cmdset `0x11`, cmdid `0x11`, unknown third tuple byte `0`, and ACK-result-byte
+    separation enabled. V2 requests one-byte indexes. V3/V4 first send `00 01`, then page with
+    `00 (index << 1)`; they parse a group protobuf followed by status-byte-plus-license-protobuf
+    records. Do not feed modern group bytes to the legacy record parser, bypass the support/version
+    gates, or improvise receiver routes, product/device tokens, or raw frames.
 23. MSDK 5.18's current pull path is FC serial -> `queryFCLicensesJni` ->
     `native_QueryLicenseFromFC(productId, deviceId)` -> `ModuleMediator::QueryLicenseFromFC`, and
-    it returns a whole `FlysafeLicenseGroup` that can contain RID licenses. Its public API/result
-    model is not the legacy indexed-record model; the exact queued-task wire message remains
-    unresolved and could still reuse a numeric command tuple. Do not feed
-    group bytes to the legacy parser or guess its command/payload. Current DJI Fly 1.21.10 proves
-    only that generic license UI/JNI symbols are packaged, not a type-6 RID UI or entitlement.
-    The executable 1.21.4 prior version recognizes only types 0--4/255 and can mis-handle type 6;
-    never use that generic UI label/switch as proof of RID semantics.
+    it returns a whole `FlysafeLicenseGroup` that can contain RID licenses. The current native
+    set-enable map independently resolves `PackType 0x39` to tuple `11 12 00 01`; V2 uses a six-byte
+    license-id/boolean payload and V3/V4 use a seven-byte version-specific payload. This is static schema
+    evidence, not live acceptance or proof that changing any license changes RF. Current DJI Fly
+    1.21.10 proves only that generic license UI/JNI symbols are packaged, not a type-6 RID UI or
+    entitlement. The executable 1.21.4 prior version recognizes only types 0--4/255 and can
+    mis-handle type 6; never use that generic UI label/switch as proof of RID semantics.
 
 ## Concurrency and state ownership
 
@@ -221,6 +224,28 @@ Parser support, availability of the matching authentication key, and availabilit
 decryption key are separate facts. Public tooling supports IMaH v2 and 384-byte/3072-bit RSA/PSS;
 the current `wa150` blocker is missing target-matching PRAK and STUE material, not a new unsupported
 container format. Forced processing of an encrypted chunk is still encrypted/unverified data.
+
+The package-identical `wa150/0806` module has now been independently downloaded and audited as
+IMaH type `DONG`; RC 2's official configuration identifies peer host `0x0806` as LTE. It is another
+PRAK/STUE-protected module and not a plaintext RID route. `1200` is the ESC/motor-controller family;
+motor start can gate RID without placing RID encoding there. Keep `0802/E3` as the primary firmware
+candidate. Do not transplant the Mini 2-era S1/Sparrow unsigned-SDRH bypass to WA150/Sparrow2: no
+current module, loader, or configuration has shown an SDRH/equivalent unsigned post-verify patch
+path.
+
+The retail Assistant's WA150 log/data-export path is a device-exposed, mode-gated diagnostic
+FTP/file surface, not an `0802` partition or plaintext-firmware readback path. Its front-end
+`/esc/config/ReadFlashData` route has no discovered WA150 native handler or `0802` binding. Do not
+label either as firmware readback, browse arbitrary device paths, or switch a live device into
+export mode without a separate test authorization.
+
+RC 2's Sparrow2 is the ground-side `SPARROW_GND`/`1400` radio. `dji_sdrs_agent` orchestrates
+`brload` and fixed fastboot writes; it is not a decrypt/sign oracle and its WA150 variant is not an
+aircraft `0802` plaintext copy. Never run `brload`, `fastboot flash`, `cmpu_*`, OTP, production, or
+unknown staged-upload scripts for discovery. A secure-debug gate exists, but no current evidence
+shows that a retail controller or aircraft can enter or pass that state. No unsigned runtime-patch
+descriptor or safe decrypted-aircraft readback was found, and some manufacturing writes may be
+irreversible.
 
 Official `rc331/10.00.0700/0205` passed its public outer signature and chunk checksums without force
 and may be used for offline filesystem analysis only. It is the Android/Qualcomm base-system OTA,
