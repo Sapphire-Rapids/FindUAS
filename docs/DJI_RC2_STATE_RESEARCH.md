@@ -274,15 +274,41 @@ values select the module and route but are not serialized into the recovered que
 modern query or enable frame has yet been sent through a proven current session, and no genuine
 type-6 record or RF effect has been observed.
 
+Current DJI Fly 1.21.10's `libflightrestrictcore.so` also identifies why a raw endpoint retry is
+not a valid substitute for the official session. Its device object begins with unlock version
+unknown (`0xff`) and support false, then updates those caches from registered area and whitelist
+pushes. The recovered current behavior is:
+
+| Current-session input | Cached result |
+| --- | --- |
+| area push `0x03/0x09` | top two bits of the little-endian version field select V2/V3/V4 generation 0/1/2; value 3 remains unknown |
+| whitelist push `0x03/0x42` | modern first byte 10+ is supported unless `0xff`; the older long layout reads byte 3; a short old layout leaves state unchanged |
+| product 139 with version 0/1 | receiver `0x03` |
+| product 139 with version 2 | receiver `0xb1` |
+
+The query manager returns before transmission when support is false or version is still unknown.
+A strict 20-second passive dual listener validated 122 direct-aircraft frames and 81 RC 2 frames,
+but saw neither target push. No USB writes were made. This leaves both caches and the receiver route
+unknown; it does not mean the aircraft reported `unsupported`, because these are registered
+current-session pushes and may require the official runtime subscription or a state transition.
+
 The DJI Fly UI/account evidence must also stay versioned. The protected official 1.21.10 artifact
 retains generic account-license/aircraft-license UI and JNI symbol names, but currently provides no
-recovered type-6-specific UI, download, or consumer-entitlement proof. The closest executable
-public prior version, 1.21.4, recognizes only license types 0--4 and 255; numeric type 6 becomes
-`UNKNOWN` and can fall through to polygon parsing/labels. Its generic license switch cannot be
-identified as an RID switch. In that prior flow, login plus network gates server refresh of signed
-account licenses. Reading the FC inventory and displaying its enable state are not directly gated
-by account login, while import is gated by exact group-SN/current-FC-SN matching and the native
-current-device context.
+recovered embedded type-6-specific UI or Mini 5 Pro consumer entitlement proof. Separately, DJI's
+current public FlySafe front end does prove that official RID applications exist: Mainland China
+uses a Government-account `rid` form with `rid_level=2`, while the overseas path uses an
+EuropeanFcc-account `abroad-rid` form with `rid_level=1`. Both filter server product rows by
+`support_unlock_type` containing `Rid` and bind the selected product and FC serial. The public
+bundle contains no Mini 5 Pro product row, so eligibility remains unknown until a qualified,
+logged-in account receives the server list. The overseas terms also exclude a UAS carrying an EU
+2019/945 class-identification label; this condition must not be bypassed or falsified.
+
+The closest executable public prior version, 1.21.4, recognizes only license types 0--4 and 255;
+numeric type 6 becomes `UNKNOWN` and can fall through to polygon parsing/labels. Its generic
+license switch cannot be identified as an RID switch. In that prior flow, login plus network gates
+server refresh of signed account licenses. Reading the FC inventory and displaying its enable state
+are not directly gated by account login, while import is gated by exact group-SN/current-FC-SN
+matching and the native current-device context.
 
 `IsEuCeEnableC0Rid` does have a recovered business caller. `UAVC0EuRidCloudControlLogic` reads the
 `EU_BUCKET_COEXIST_C0_RID` cloud namespace, checks whether the current area is in its
@@ -629,10 +655,10 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. Recover only the queued task/message builder behind MSDK 5.18
-   `ModuleMediator::QueryLicenseFromFC`, or obtain a legitimate current-session SDK inventory
-   result. Determine its exact transport, message ID, request/ACK framing, and product/version
-   gates without guessing adjacent raw commands or reusing the legacy record parser.
+1. Obtain a legitimate current-session SDK/FlySafe inventory result or observe the official
+   runtime populating both the area/version and whitelist/support caches. Use only the resulting
+   V2/V3/V4 session and receiver; do not infer unsupported from passive absence, scan receiver
+   addresses, guess adjacent commands, or reuse the legacy record parser for modern protobuf data.
 2. Use current official DJI Fly 1.21.10 for handler-level static mapping. Export the live
    controller's package-manager public base/split APKs only if exact embedded-build parity is
    needed. Do not repeat the exhausted public-key sweep over `0200`, and do not root or unlock it.
@@ -650,10 +676,15 @@ the remaining probes are read-only.
 7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
    [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext
-   view before doing a 0600/0700 file-level diff; do not force-extract `STUE` ciphertext.
+   view before doing a 0600/0700 file-level diff; do not force-extract `STUE` ciphertext. The full
+   encrypted-payload comparison found no usable cross-version AES-CTR key-stream reuse, so do not
+   repeat ciphertext XOR or guessed-crib scans without new key/counter evidence.
 
 ## Primary sources
 
+- [DJI FlySafe current site](https://fly-safe.dji.com/)
+- [DJI FlySafe RID application bundle](https://flysafe-public.djicdn.com/js/unlock-request.5439c983.js)
+- [DJI RID Unlocking Terms of Use](https://terra-1-g.djicdn.com/7a66f171a9ea4821836288ecd68e13f3/%E5%8D%8F%E8%AE%AE%E6%9D%A1%E6%AC%BE/RID%20Unlocking%20Terms%20of%20Use_EN.html)
 - [DJI MSDK V5 `IUASRemoteIDManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IUASRemoteIDManager/IUASRemoteIDManager.html)
 - [DJI MSDK V5 `IFlyZoneManager` / `RID_UNLOCK`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
 - [DJI Cloud API FlySafe license schema and `RID_UNLOCK` levels](https://developer.dji.com/doc/cloud-api-tutorial/en/api-reference/dock-to-cloud/mqtt/dock/dock3/flysafe.html)

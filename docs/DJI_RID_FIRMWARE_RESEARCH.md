@@ -407,9 +407,58 @@ The size remained 679,295,296 bytes, but:
 This proves failure at the Assistant package MD5, internal payload-digest, and encrypted-data
 checksum layers. Recomputing the two internal fields would still change the signed header and
 require the unavailable matching private key. It is not an RID patch and does not by itself prove
-an RSA verification result, because no matching public `wa150` PRAK key is available to validate
-the original signature. The experiment did not repair checksums, re-sign, repack, transfer, or
-flash the file.
+an RSA verification result, because no matching public `wa150` PRAK key was found in the pinned
+corpus/current research tree to validate the original signature. The experiment did not repair
+checksums, re-sign, repack, transfer, or flash the file.
+
+### Public-integrity recomputation follow-up
+
+A second work-only experiment went one step further on a temporary copy of the same `0802`
+module. It changed one byte inside the STUE-encrypted chunk, recalculated the encrypted payload
+SHA-256 stored in the IMaH header, recalculated `encr_cksum`, and then parsed the result again. Both
+publicly computable fields matched the modified payload after the rewrite. The output was named
+`*.nonflashable.bin`, made read-only, reported `safe_flashable_patch_ready=false`, and deleted with
+its temporary directory after verification.
+
+That experiment did **not** produce a usable firmware image:
+
+- the changed byte is ciphertext, not a located RID implementation or policy value;
+- the package manifest MD5 was deliberately not repaired;
+- current evidence cannot correctly determine or validate the modified image's `plain_cksum`;
+- the payload digest and encrypted checksum are inside the RSA-PSS-covered header, so their
+  correction changed the signed message while the original 384-byte signature stayed unchanged;
+- no matching WA150 PRAK public key, private signing key, or STUE material was found in the pinned
+  public-key corpus and current research tree; and
+- anti-version policy, loader acceptance, and a reliable recovery path remain unverified.
+
+The work-only probe has explicit path, filename, overwrite, source-integrity, parser, and
+single-byte/range guards. With the pinned default parser it implements no signing, transfer, or
+flash interface. Its small-module fixtures and the full temporary `0802` run validate that
+recomputing public checksums is possible, but also demonstrate why that is not equivalent to making
+a signed, decryptable, safe flash candidate. Loader rejection was not tested on hardware.
+
+### Cross-version STUE differential check
+
+The `01.00.0600` and `01.00.0700` `0802` payloads were also compared offline to test whether an
+AES-CTR key/nonce reuse mistake could bypass the plaintext requirement. Their 16-byte wrapped
+`scram_key` values differ in every byte, with a 71/128-bit XOR Hamming distance. Under the pinned
+IMaH v2 implementation, STUE first unwraps that value with AES-ECB and then uses the result as the
+AES-CTR content key with a zero counter start. If the same STUE KEK applies to both packages, the
+distinct wrapped values imply distinct content keys; if DJI rotated the KEK, there is still no
+evidence that the resulting content keys coincide.
+
+The complete 679,294,688-byte common payload prefix provides an independent check: ciphertext XOR
+entropy was `7.999999731` bits/byte, equal-byte frequency was `0.3907463%` (consistent with the
+random `1/256` expectation), bit distance was `50.00147%`, byte correlation was approximately
+zero, and there were no equal aligned 16-byte or 32-byte blocks. All five local WA150/STUE samples
+also had unique wrapped scramble values. The small known zero-padding tails expose only a few bytes
+of package-specific keystream at different counters and do not advance key recovery.
+
+These observations do not prove that STUE has no weakness, but they close the practical
+`C0600 XOR C0700` route for the available pair. Further ciphertext XOR, offset scanning, or guessed
+cribs are lower-value than obtaining a lawful verified plaintext/readback, a STUE unwrap path whose
+output passes `plain_cksum`, a read-only installed-runtime observation, or a vendor-trusted
+development loading/signing path with recovery.
 
 ## Modern FlySafe license query and enable paths
 
@@ -457,6 +506,27 @@ Because V2 itself uses a one-byte index, this static recovery does not identify 
 caused the earlier hand-built requests to time out, nor does it establish that Mini 5 Pro selects
 V2, V3, or V4. That requires a legitimate current-session support/version result and receiver route.
 
+Current DJI Fly 1.21.10's own FlySafe core closes those gates more precisely. The inspected
+`libflightrestrictcore.so` has GNU Build ID
+`392c9eaea6755c846e2ffee1a7830a45b01a74d3` and SHA-256
+`17da8363e1ddba47313a74801099e6fdf1e6c4b57ef749222b0cf6e3ceb018f3`. Its device object caches
+unlock version at offset `+0xb8` (initial value `0xff`, unknown) and support at `+0x100` (initial
+value false). `Setup` registers current-session push descriptors including `0x03/0x09`,
+`0x03/0x42`, and `0x03/0xce`; the recovered area and whitelist callbacks populate the two caches.
+The area callback derives versions 0, 1, or 2 from the top two bits of a little-endian field and
+maps value 3 back to unknown. The whitelist callback treats a modern first byte of 10 or greater as
+supported unless it is `0xff`; the older long form uses byte 3, while a short old form leaves the
+cache unchanged.
+
+The query manager refuses to send when support is false or the version remains unknown. For the
+current Mini 5 Pro product mapping (product 139), versions 0/1 use receiver `0x03` and version 2
+uses receiver `0xb1`; product 139 is not in the recovered special `0x92` override list. A strict
+20-second passive listener therefore watched both the direct-aircraft and RC 2 USB receive streams
+without writing anything. It validated 122 aircraft frames and 81 RC 2 frames but observed none of
+the area or whitelist pushes. That leaves support, version, and receiver unknown for this session;
+absence of a registered push in a passive window is not evidence of `unsupported`, and it is not a
+reason to try every receiver address.
+
 The protobuf union has a dedicated RID field; the domain type is `RID_UNLOCK == 6`, its RID payload
 contains `level`, and each returned record carries invalid/enabled/in-valid-date status. The
 official MIT sample independently displays `RID_UNLOCK`/`ridUnlockType` and enables or disables an
@@ -479,6 +549,32 @@ firmware-side policy. Current DJI Fly 1.21.10 package strings likewise prove onl
 license subsystem is present. The executable DJI Fly 1.21.4 prior version recognizes only license
 types 0--4/255 and can mis-handle type 6, so its generic label or switch is not usable RID evidence.
 
+### Current official RID entitlement boundary
+
+The current public FlySafe front end provides two real RID application paths rather than a local
+debug toggle:
+
+- Mainland China “Government Aircraft Unlocking” uses form type `rid` and `rid_level=2`; its UI
+  requires an approved, participating Government-background account in China.
+- Overseas “Unlock RID” uses form type `abroad-rid` and `rid_level=1`; its UI requires an approved,
+  participating EuropeanFcc-background account.
+
+In both cases, the device picker filters server-returned product metadata and accepts only products
+whose `support_unlock_type` contains `Rid`; the public JavaScript bundle does not embed the product
+list. The form then binds the request to the selected product and flight-controller serial. The
+overseas terms also require the applicant to confirm that the UAS does not carry an EU 2019/945
+class-identification label. These are qualification and compliance boundaries, not conditions to
+bypass or falsify.
+
+The official architecture is therefore account/server approval -> FC-serial match -> import to the
+aircraft -> query from the aircraft -> enable/disable an existing signed license ID. Public APIs
+and error enums distinguish server-approved licenses from aircraft-imported licenses and include
+user/device/version/SN consistency failures. No independently reproducible public record currently
+shows a genuine type-6 license being issued to Mini 5 Pro/WA150 and accepted by its flight
+controller. The next safe discriminator is the logged-in FlySafe product-capability response: if
+Mini 5 Pro is absent or its server row lacks `Rid`, this account/region has no official type-6 path
+and the aircraft should not be written.
+
 ## Handoff sequence
 
 1. Keep originals immutable and outside this repository. Verify size, official MD5, and local
@@ -500,10 +596,12 @@ types 0--4/255 and can mis-handle type 6, so its generic label or switch is not 
    F7 status on live direct/RC routes while known positive controls succeeded. Never escalate to F9
    by guessing a value type.
 7. The modern query and set-enable schemas are now statically closed. The next dynamic step, if
-   separately staged in the work tree, is read-only: obtain the legitimate current-session support
-   and version state, reproduce the matching receiver route, and inventory only redacted type,
-   level, enable, and validity fields. Do not retry the legacy one-byte request outside a proven V2
-   session or feed V3/V4 group bytes to the legacy parser.
+   separately staged in the work tree, is read-only: use the official current runtime or an
+   equivalent observer to receive the area/version and whitelist/support pushes, select exactly the
+   resulting receiver route, and inventory only redacted type, level, enable, and validity fields.
+   Passive absence leaves both caches unknown; do not substitute false defaults or scan alternate
+   receiver addresses. Do not retry the legacy one-byte request outside a proven V2 session or feed
+   V3/V4 group bytes to the legacy parser.
 8. Do not implement a firmware writer, signature bypass, generic DUML endpoint, or Remote ID-off
    control in FindUAS.
 9. Do not invoke Sparrow2 `brload`/`fastboot`, replace `bootarea.img`, touch modem/NVRAM images, or
@@ -532,6 +630,10 @@ types 0--4/255 and can mis-handle type 6, so its generic label or switch is not 
 ## Sources
 
 - [DJI Drone Security White Paper](https://www.dji.com/trust-center/resource/white-paper)
+- [DJI FlySafe](https://fly-safe.dji.com/)
+- [DJI FlySafe RID application bundle](https://flysafe-public.djicdn.com/js/unlock-request.5439c983.js)
+- [DJI RID Unlocking Terms of Use](https://terra-1-g.djicdn.com/7a66f171a9ea4821836288ecd68e13f3/%E5%8D%8F%E8%AE%AE%E6%9D%A1%E6%AC%BE/RID%20Unlocking%20Terms%20of%20Use_EN.html)
+- [DJI MSDK V5 `IFlyZoneManager`](https://developer.dji.com/api-reference-v5/android-api/Components/IFlyZoneManager/IFlyZoneManager.html)
 - [DJI Remote ID FAQ](https://repair.dji.com/help/content?customId=01700007747&lang=en&paperDocType=ARTICLE&re=US&spaceId=17)
 - [DJI Fly official download page](https://www.dji.com/downloads/djiapp/dji-fly)
 - [DJI Mobile SDK Android V5](https://github.com/dji-sdk/Mobile-SDK-Android-V5)

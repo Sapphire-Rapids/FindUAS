@@ -131,6 +131,26 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     1.21.10 proves only that generic license UI/JNI symbols are packaged, not a type-6 RID UI or
     entitlement. The executable 1.21.4 prior version recognizes only types 0--4/255 and can
     mis-handle type 6; never use that generic UI label/switch as proof of RID semantics.
+24. Current DJI Fly 1.21.10 initializes FlySafe unlock version to unknown and support to false, then
+    populates them from registered area/version and whitelist/support pushes. A passive dual USB
+    window saw neither push even though it validated ordinary aircraft and RC 2 frames. Absence is
+    unknown, not unsupported. Do not substitute the initial cache values, blind-scan receiver
+    addresses, or send a query until the current session yields both gates and one exact route.
+25. The WA150 nonflashable patch experiment can recompute payload SHA-256 and `encr_cksum` after a
+    ciphertext byte change, but current evidence cannot correctly determine or validate the
+    modified `plain_cksum`, and the repaired header changes the RSA-PSS-signed message while
+    retaining the old signature. Public checksum repair is not a signature/decryption bypass.
+    Never retain, distribute, transfer, or flash that temporary output.
+26. DJI's current public FlySafe front end has qualified Mainland and overseas RID application
+    forms, but product eligibility is a server response: `support_unlock_type` must contain `Rid`,
+    and the request binds product plus FC serial. No public evidence closes Mini 5 Pro/WA150
+    issuance and FC acceptance. Never bypass account qualification, misstate EU label status,
+    forge a license, or treat the existence of the form as product support.
+27. The full `01.00.0600`/`01.00.0700` `0802` ciphertext comparison found distinct wrapped
+    scramble values, no equal aligned 16/32-byte payload blocks, and random-like XOR statistics.
+    The five local STUE samples all have unique wrapped values. Do not repeat cross-version XOR,
+    crib, or offset scans as though they were a plaintext route unless new evidence first shows
+    identical content key/counter reuse.
 
 ## Concurrency and state ownership
 
@@ -224,6 +244,16 @@ Parser support, availability of the matching authentication key, and availabilit
 decryption key are separate facts. Public tooling supports IMaH v2 and 384-byte/3072-bit RSA/PSS;
 the current `wa150` blocker is missing target-matching PRAK and STUE material, not a new unsupported
 container format. Forced processing of an encrypted chunk is still encrypted/unverified data.
+
+The work-only `imah_nonflashable_patch_probe.py` deliberately proves only that payload SHA-256 and
+`encr_cksum` can be brought back into public-field consistency after one ciphertext-byte change.
+It preserves the not-independently-validated `plain_cksum` and original signature even though the
+signed header changes, refuses `original/` and FindUAS repository destinations, and rejects
+alternate parser modules. It marks output nonflashable/read-only; the full-size experiment's caller
+used `TemporaryDirectory`, which removed that output after verification. With its pinned parser it
+implements no sign/transfer/flash interface. Do not copy this tool or its vendor inputs into the MIT
+repository, relax its guards, add manifest repair/sign/transfer/flash behavior, or describe its
+output as a safe firmware candidate or a proven loader rejection.
 
 The package-identical `wa150/0806` module has now been independently downloaded and audited as
 IMaH type `DONG`; RC 2's official configuration identifies peer host `0x0806` as LTE. It is another
