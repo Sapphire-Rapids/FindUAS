@@ -29,7 +29,7 @@ work.
 | FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
 | EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`), type 0 and width 1; business logic owns it from cloud country membership plus C0 certification, while both current F7 routes returned status `03` rather than metadata | Observation-only; no F8 snapshot/rollback target or RF semantics exist, so F9 is a hard do-not-send and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
-| RC 2 localhost status observer | Independent v0.4 can make one input-only connection to fixed `40007` or `40009`, correlate only strict same-epoch official traffic, and retain de-identified RID/FlySafe/type-6/France-EID summaries | Work-only readback aid; an earlier build was manually installed and v0.4 awaits overwrite/runtime verification. It has no request builder, writer, reconnect, persistence, or switch semantics and does not enter this repository |
+| RC 2 localhost status observer | Historical v0.1–v0.4 opened a second input-only `40007`/`40009` connection, but adjacent official framework evidence now proves these endpoints default to a single active fd and a newcomer may replace DJI Fly's connection | Withdrawn: do not install or start. Offline parsers remain research material; v0.6 replaces it in place with a no-permission/no-socket environment probe and still has no switch semantics |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -111,29 +111,30 @@ the UI observer gates the EID query on FC=`FR`, it will not send that request in
 separate CN-state EID probe had already shown the request as unavailable. This distinction prevents
 both unnecessary queries and the unsafe UI inference “no response = off”.
 
-### Rootless RC 2 localhost observer status
+### Rootless RC 2 observer retraction and safe replacement
 
-A third-party research clone first demonstrated the useful lifecycle, but its approximately 52 MB
-APK also carried unrelated FCC, accessibility, boot-receiver, package-install, log, and Wi-Fi
-capabilities. It was therefore rejected for installation. The replacement is an independently
-implemented, approximately 2.3 MB research APK with package name `com.finduas.ridobserver`. It is
-default OFF and exposes only explicit manual Start/Stop. Each Start makes at most one connection to
-fixed loopback endpoint `127.0.0.1:40007`, obtains only the input stream, and stops on EOF or failure.
-There is no output stream, write, query, primer, setter, reconnect, boot start, sticky restart, or
-persistent state.
+A third-party research clone was rejected because its approximately 52 MB APK bundled unrelated
+FCC, accessibility, boot-receiver, package-install, log, and Wi-Fi capabilities. An independently
+implemented v0.1–v0.4 then narrowed behavior to manual, input-only localhost observation. Its
+no-output-stream, strict-parser and privacy properties were real, but they were not sufficient:
+establishing the TCP connection itself can be disruptive.
 
-The parser accepts only strict DUML framing/CRC plus the bounded RID/FlySafe status messages, then
-retains only de-identified typed state. The final manifest has exactly four permissions:
+Adjacent official RC331 `10.00.0700/0205` artifacts show `40007` and `40009` are TCP servers with no
+protective connection-retention flag. The recovered framework's default branch accepts a newcomer,
+closes the old active fd, and replaces it. Thus a second client may disconnect DJI Fly even when it
+never obtains an output stream or sends a byte. Historical observer v0.1–v0.4 is withdrawn from live
+use and must not be installed or started. Exact `07.00.0100` code remains unproven, but the asymmetric
+transport risk requires fail-closed behavior. The old parsers and their tests remain offline-only
+research artifacts.
 
-- `android.permission.INTERNET`;
-- `android.permission.FOREGROUND_SERVICE`;
-- `android.permission.FOREGROUND_SERVICE_DATA_SYNC`;
-- `android.permission.POST_NOTIFICATIONS`.
-
-It has no receiver, accessibility service, package installer, log-reader, Wi-Fi/Bluetooth/location/
-storage/camera/microphone, USB-write, or root capability. All 9 protocol and safety unit tests and
-the debug build pass. Both source and APK remain work-only and are deliberately excluded from this
-MIT repository.
+Version 0.6 keeps package name `com.finduas.ridobserver` and the same signer solely to overwrite an
+installed historical build. It is built from an isolated safe source set and requests no Android
+permissions. It has one launcher Activity and no service, receiver or provider; contains no socket,
+`40007`/`40009`, DUML, `Parcel`, Binder application transaction, external Activity launch or process
+execution; and never starts a DJI component or writes a property. A manual snapshot only checks the
+`protocol` Binder's liveness/descriptor and reports read-only package, UID, signer, ABI, component,
+SELinux, `ro.debuggable`, and upgrade-marker facts. Even a matching descriptor is an environment
+gate, not a RID state, transaction authorization or switch.
 
 The Mac host opened the RC 2 ADB bulk endpoints and sent `CNXN`, but the controller returned neither
 `AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy and libusb
@@ -141,17 +142,17 @@ backends and with platform-tools 35.0.2. Consequently no shell or `adb install` 
 parentage then showed that the visible 45 GB and 256 GB storage LUNs both belonged to the aircraft,
 not the RC 2. An interim APK copy on aircraft internal storage was deleted only after its exact hash
 matched the known work artifact, and the aircraft volume was safely unmounted. The RC 2 microSD was
-not exported through the current USB configuration. The user instead provided an almost-empty
-removable card through a separate reader and explicitly authorized formatting; after exact device
-identity checks it was formatted MBR/ExFAT, received only the known APK with a matching
-source/destination hash, passed read-only ExFAT verification, and was safely ejected. Visible manual
-installation did not start because RC 2 offered only native reformat rather than browse for this
-Mac-created volume. The bounded next step is RC-native format followed by an APK-only copy through
-the reader. The app has not been launched or hardware-validated.
+not exported through the current USB configuration. After the first Mac-formatted card was rejected,
+the RC 2 initialized the card itself; the Mac then copied hash-matched artifacts through a separate
+reader. The user successfully installed the DJI-signed PackageInstaller/FileManager updates and an
+older observer APK, proving the manual no-root/no-ADB update path. The older observer must remain
+stopped and be overwritten by v0.6. At the latest check the RC 2 USB device remained visible but ADB
+was still `offline`, no RC 2 card was mounted on the Mac, and both mounted 45 GB/256 GB volumes still
+belonged to the aircraft. No v0.6 hardware result has yet been collected.
 
-This observer cannot log in to a DJI account, obtain or upload a license, change a license's enabled
-state, or establish RF behavior. It is only a privacy-bounded internal status/readback surface for a
-later independently observed motor-on experiment; it does not close any part of the setter path.
+The v0.6 replacement cannot log in to a DJI account, observe broker traffic, obtain or upload a
+license, change a license's enabled state, or establish RF behavior. It only decides whether a later,
+separately reviewed system-identity or in-process read-only probe is even eligible to be considered.
 
 ### Why a self-written switch must control an external source
 
@@ -633,10 +634,15 @@ standard, contents, timing, or RF power.
 4. Specify and implement a capability-gated external source adapter, then validate its hardware
    identity, firmware, encoder, transport, RF interlock, lease, stop, rollback, and independent
    measurement in a controlled laboratory before enabling real transmission.
-5. If DJI SDK strategy or French EID behavior is still useful, first use v0.4 input-only `40009`
-   observation during DJI Fly's own lifecycle. Require a correlated official `0x03/0x77` GET/ACK
-   before treating EID as available, then compare SDK state, every affected area surface, and
-   independent RF reception. Do not substitute the two failed direct-USB routes or guessed writes.
+5. If DJI SDK strategy or French EID behavior is still useful, first overwrite any historical
+   observer with v0.6 and collect its exact live ABI/UID/signature/debuggable/SELinux/Binder gates.
+   The independently reviewed UID1000 transaction-1 check classifies only manager liveness; it does
+   not admit a `Pack`. Before any Binder GET, recover the exact live manager/callback/Parcelable ABI
+   and prove native selector 3 plus retry 0 are preserved. The current adjacent-ABI tx4 artifact is
+   prohibited because `maxRetryCnt` is omitted/defaults to 2 and its selector is 0. Prefer a reviewed
+   in-process DJI Fly subject getter after a no-op attach canary. Do not open `40007`/`40009`,
+   substitute the two failed direct-USB routes, or guess a write. A later state change still
+   requires baseline/readback/restore and independent RF reception.
 6. Keep the O4 FCC/CE area-code investigation separate from Remote ID profiles.
 7. Keep aircraft-firmware analysis separate from receiver compatibility. The verified `0802`
    boundary and next research steps are documented in

@@ -131,32 +131,30 @@ RID policy 参数名，在这台 Mini 5 Pro 上均未返回可用的 F7 参数�
 基线；两路都未观察到该 push。这个基线不能证明“不支持”，因为状态可能需要官方订阅或状态变化，
 且用户确认该机型只有起桨后才开始实际播发 RID。外部监测设备当时离线，所以没有空口结论。
 
-后续历史语料复核找到了更好的无 Root 观察面：RC 2 本机 `40007` broker 的一组真实、严格 CRC
-通过的旧实机数据里出现过 2 帧 `0x11/0x1C`，并同时包含 FlySafe 的 `0x03/0x09` 与 `0x03/0x42`
-push。因此下一步是在 RC 2 上做单连接、长时间、完全只读且
-先去敏再输出的 RID 状态监听器，而不是先 Root 或反复短连抓全量遥测。该证据来自另一机型，仍需在
-Mini 5 Pro 起桨实验中与独立接收器同步复核。
+后续历史语料确实在 RC 2 `40007` 数据中找到过严格 CRC 通过的 `0x11/0x1C`
+RID 状态帧以及 FlySafe `0x03/0x09`/`0x03/0x42` push，但后续静态审计推翻了“可安全并行监听”
+的前提。相邻官方 RC331 `10.00.0700/0205` 的 `dji.json` 与 `libduml_frwk.so`
+表明 `40007`/`40009` 默认是单活动 fd 服务器；第二个 TCP 客户端即使不写任何字节，也可能
+关闭并替换 DJI Fly 已有连接。因此历史 observer v0.1–v0.4 已经撤回，**不得安装或启动**；
+它们的解码器和测试只保留为离线研究资产。精确 `07.00.0100` 实现仍待读取，但这种不确定性不能
+用来承担中断飞控链路的风险。
 
-为避免把只读观察器与无关能力混在一起，本轮明确拒绝安装一个约 52 MB、同时带有 FCC、无障碍、
-开机接收器、安装包、日志及 Wi-Fi 修改能力的第三方 APK。随后独立实现了最小的 research-only
-Android 应用 `com.finduas.ridobserver`。当前 v0.4 默认关闭，只能手动 Start/Stop；一次只观察固定
-`127.0.0.1:40007` 或 `40009` 的一个 input-only session，端口忙、断流或失败即停止。它没有
-output stream、query/request builder、setter、reconnect、boot receiver 或持久化，只显示经严格
-CRC、命令、sequence、反向 route 与同一 connection epoch 门禁后得到的去敏状态。40009 另把
-France EID `0x03/0x77` 与 FlySafe type-6 inventory 分成两个互不背书的被动 canary；前者明确不是
-FAA/全局 RID，后者只有在 fresh V3/V4 + usable support + 官方 Query/ACK 同时可见时才输出汇总。
-最终 manifest 仍只有 Internet、前台服务、data-sync 前台服务和通知四项权限；observer 44/44、
-wire codec 31/31、type-6 parser 20/20 测试通过。源码与 APK 仍是 work-only 工件，不进入本 MIT
-仓库。
+当前同包覆盖更新为 `com.finduas.ridobserver` v0.6。它由隔离的 safe source set 构建，不申请任何
+权限，不含 service/receiver/provider、socket、`40007`/`40009`、DUML、`Parcel` 或 Binder 应用事务。
+用户手动点击后，它只做 `protocol` Binder 存活/描述符检查，并只读回报 DJI Fly/
+`dpad_fuli` 的版本、system/debuggable/UID/signature/ABI/组件状态、SELinux、`ro.debuggable` 与
+升级恢复标志。它不启动 DJI 组件、不写属性、不发命令，所以结果只是下一阶段的环境门禁，不是 RID
+状态或开关。当前发布工件 SHA-256 为
+`1746446e94bdb9df3c7ccb4cf1a1244fb200728827405891d61fcdc1a7941475`；它仍是 work-only 研究工具，
+不进入本 MIT 应用的产品能力。
 
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
 platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因此没有取得 shell，也没有执行
 `adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB 存储都属于飞机，而不是 RC 2；一次
 误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全卸载该卷。后来用户用 RC 2 原生处理的
 microSD 成功安装了 DJI 签名的 PackageInstaller/FileManager helpers 和较早 observer，证明了无需
-Root/ADB 的人工更新路径。v0.4 已完成构建、签名、lint、zipalign 与独立静态审计，仍需在 RC 2 上
-覆盖安装并取得当前 Mini 5 Pro 的 40007/40009 实机结果。即使观察成功，它也只是只读证据面，不是
-Remote ID 开关。
+Root/ADB 的人工更新路径。下一步是用 v0.6 同包覆盖旧版并回传完整诊断页；在完成覆盖前不得点击旧版
+Start。当前 Mac 上的 45 GB 与 256 GB 卷仍都属于飞机，不得再把 RC 2 APK 复制到这两个卷。
 
 `rid_broadcast_effect_icloud_control` 也完成了一次匿名最小云查询：命名空间存在，但当前返回只包含
 产品 158/159 的全零广播效果配置，产品 139/WA150 不在响应中。这进一步排除了把该字段直接当成

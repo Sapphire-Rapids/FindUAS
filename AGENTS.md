@@ -177,10 +177,13 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     active trigger. If runtime product is confirmed as 139 and both official gates are populated,
     `PackManager` overrides the final inventory-query receiver to `0x92` for versions 0, 1, and 2;
     do not hand-route or scan receivers.
-29. A pinned historical RC 2 `40007` corpus contains two strict CRC-valid `0x11/0x1C` frames.
-    Prefer one long-lived, zero-write localhost observer over Root or repeated raw captures. Filter
-    to the exact seven-byte RID payload on-device and export only de-identified status fields.
-    Never expose raw `40007` telemetry, and never parse the distinct `8902` stream as DUML.
+29. A pinned historical RC 2 `40007` corpus contains two strict CRC-valid `0x11/0x1C` frames, but
+    that corpus does not prove a second client can coexist with DJI Fly. Adjacent official RC331
+    `10.00.0700/0205` `dji.json` and `libduml_frwk.so` prove that `40007`/`40009` default to one
+    active accepted fd and a newcomer can close/replace the existing fd even if it never writes.
+    The localhost-observer architecture is retired: never open either port as a second client or
+    revive the observer. Do not expose historical raw telemetry, and never parse the distinct
+    `8902` stream as DUML.
 30. The anonymous bounded cloud probe found `rid_broadcast_effect_icloud_control` present with only
     product keys 158/159 and zero effect values; product 139 was absent. Missing is not zero, and a
     conditional cloud response is not a stable RID switch or permission to synthesize/write
@@ -195,23 +198,34 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     trust-chain primitive; do not downgrade for them. The forked FlyC `0xDA` dissector derives from
     an older AeroScope privacy-bit experiment that is incomplete, resettable, and unverified on
     WA150 standard RID. It is not a control candidate.
-33. Keep two Android artifacts distinct. The rejected roughly 52 MB third-party clone APK bundled
-    unrelated Auto-FCC/DUML behavior and broad boot/accessibility/package-install/log/Wi-Fi
-    capabilities; it was not installed and must stay out of this MIT repository. The independent
-    observer v0.4 is default OFF/manual/input-only and observes one fixed localhost `40007` or
-    `40009` session. It has no output stream, primer/query/request builder/write, reconnect,
-    boot/sticky start, or persistence. It requests only Internet, foreground-service/data-sync, and
-    notification permissions and exports only de-identified typed status. Its strict correlation,
-    epoch reset, type-6 privacy summary, and separate France-EID canary pass 44/44 observer tests;
-    the two read-only protocol modules add 31/31 and 20/20. Keep this work-only APK out of the
-    repository and preserve the same zero-write lifecycle/privacy constraints in any clean
-    reimplementation.
+33. Keep three Android artifact classes distinct. The rejected roughly 52 MB third-party clone APK
+    bundled unrelated Auto-FCC/DUML behavior and broad boot/accessibility/package-install/log/Wi-Fi
+    capabilities; it was not installed and must stay out of this MIT repository. Historical
+    observer v0.1–v0.4 is also withdrawn from live use: its parser/privacy/no-output-stream claims
+    remain true, but `connect()` itself can take over the single active `40007`/`40009` fd. Never
+    install or start those versions, reconnect them, or reuse their live procedure. Their 44/44,
+    31/31 and 20/20 tests cover offline decoding only, not broker coexistence safety. The safe
+    replacement v0.6 keeps the same package/signature for an in-place update but contains no
+    permissions, service, socket, DUML, `Parcel`, Binder application transaction, external Activity
+    launch or process execution. It only inventories the live Binder descriptor and environment;
+    keep it work-only and do not describe a successful probe as a RID result or authorization.
 34. Product-139 France EID and FlySafe type-6 are separate mechanisms. The exact France lane is
     GET `[02]`, SET `[00]/[01]`, GET ACK `[result,state]`, SET ACK `[result]`, 500 ms and retry 0;
     it is not FAA/global RID. Two fixed direct-USB clear GET routes returned no canonical ACK, so
     the live private DJI Fly route/state is still unknown. The old `EU_CE_enable_c0_rid_0` hash
     parameter is an app-owned EU/CE/C0 policy input; current F7 status `03` provides no metadata,
     snapshot, or rollback target, so F9 must not be sent.
+35. The current rootless admission sequence is fail closed: install v0.6 over any historical
+    observer; require its exact live package/UID/signature/ABI/debuggable/SELinux/upgrade-marker and
+    Binder-descriptor results; then review a separate UID1000 transaction-1 `isEnable` checker before
+    any transaction 3/4 carrying a `Pack`/DUML request. Transaction 1 itself is an application-defined
+    Binder transaction and proves neither Parcelable compatibility nor send authorization. A France
+    EID Binder GET remains prohibited until the exact live manager, callback and `Pack` Parcelable
+    ABI are recovered and the route preserves the native selector/retry contract. The current
+    adjacent-ABI artifact fails those final gates: `maxRetryCnt=0` is not parceled and reconstructs as
+    default `2` (potentially three sends), while its selector `0` differs from DJI Fly product-139's
+    native selector `3`. If those gaps cannot be closed, use a reviewed in-process getter that reuses
+    DJI Fly's initialized subject; never fall back to a second broker socket.
 
 ## Concurrency and state ownership
 

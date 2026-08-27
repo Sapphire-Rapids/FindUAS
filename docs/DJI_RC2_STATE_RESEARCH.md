@@ -183,6 +183,13 @@ are duplicate fallback. The request constructor's static default receiver is typ
 (`0x92`), sender type is 2 with a runtime sender index, timeout is 500 ms, and retry count is 0.
 A runtime single-HostID Characteristics override can still replace the static receiver.
 
+Those are native DJI Fly provider facts, not properties of the current adjacent-ABI raw Binder
+prototype. The recovered `Pack` Parcelable omits `maxRetryCnt`; the service reconstructs the field
+with default value 2, so a nominal retry-0 GET may be sent up to three times. The prototype also
+uses DUML encryption selector 0 while DJI Fly's product-139 native request selects 3. Descriptor,
+UID1000 and transaction-1 success cannot resolve either mismatch. The transaction-4 France-EID
+artifact therefore remains **DO NOT RUN** even if the earlier environment gates pass.
+
 For a matching response, byte 0 is the command status and bit 0 of byte 1 is the reported EID
 state. A set operation is not verified by its acknowledgement alone: it must be followed by the
 `0x02` read and an explicit state comparison. Missing, short, mismatched, or unsuccessful
@@ -752,18 +759,18 @@ contained a `0x11/0x1C` candidate. No raw payload, UAS ID, location, or serial w
 a valid quiet baseline, not a negative capability result; the external detector was offline and
 the user reports that this aircraft begins actual RID transmission only after motor start.
 
-The RC 2 localhost broker is a stronger no-root observation surface than those USB receive
-windows. A pinned historical RC 2/Avata capture from `127.0.0.1:40007` contains 759 strict
+The RC 2 localhost broker provided stronger historical evidence than those USB receive windows. A
+pinned RC 2/Avata capture from `127.0.0.1:40007` contains 759 strict
 CRC-valid inner DUML frames, including two `0x11/0x1C`, twelve `0x03/0x09`, and four
 `0x03/0x42` frames. This proves that a normal RC 2 app can receive `RidWorkingStatusPush` and the
 two FlySafe support/version cache inputs from that broker on at least one real product/session. It
-does not yet prove the current Mini 5 Pro forwards the same pushes. The appropriate next implementation
-is one long-lived, read-only `40007` client that parses both the outer envelope and direct DUML,
-filters on-device to the exact seven-byte RID status, and exports no raw frames, coordinates,
-identity, or serial data. Repeated short captures are unsuitable because they can miss low-rate
-pushes and existing tests show that reconnect churn can disrupt the aircraft/controller link.
-Port `40009` is a secondary direct-DUML observation path; `8902` is a different length-delimited
-stream and must not be fed to the DUML parser.
+does not prove the current Mini 5 Pro forwards the same pushes, and it does not prove that a second
+client can safely coexist with DJI Fly. Subsequent static recovery of adjacent official RC331
+`10.00.0700/0205` `dji.json` and `libduml_frwk.so` shows `40007` and `40009` default to a single
+active accepted fd: a newcomer may close and replace the old fd even if it never writes. Therefore
+the second-client localhost-observer architecture is retired and neither port is an admissible live
+observation path. `8902` remains a different length-delimited stream and must not be fed to a DUML
+parser.
 
 Two Android artifacts must not be conflated. A roughly 52 MB debug APK built from a third-party
 research clone included unrelated Auto-FCC/DUML features and broad components such as a boot
@@ -771,18 +778,18 @@ receiver, accessibility service, package-install/log/Wi-Fi capabilities, and was
 installation. It is not the observer candidate, was not installed, and neither that clone nor its
 APK belongs in this repository.
 
-A separate, independently written minimal observer-only APK is roughly 2.3 MB. It defaults OFF and
-has only a manually started, non-exported foreground data-sync service plus its launcher activity.
-It makes one read-only connection attempt to fixed localhost port `40007`, obtains no output stream,
-sends no primer/query/write, never reconnects, has no boot receiver or sticky restart, and retains
-only typed de-identified RID/EID and FlySafe status fields. Its manifest requests only Internet,
-foreground-service/data-sync, and notification permissions; it requests no Bluetooth, location,
-storage, camera, microphone, Wi-Fi-control, package-install, log, or accessibility capability.
-Stop/teardown closes the socket and joins the worker. Its focused protocol and safety tests pass
-9/9 and the small debug package builds, but installation and current Mini 5 Pro runtime validation
-remain separate hardware steps. This independent APK is a work-only validation artifact and also
-does not belong in the MIT repository; any later in-repository implementation must preserve the
-same zero-write, default-off, no-reconnect, de-identified lifecycle.
+A separate, independently written observer v0.1–v0.4 was roughly 2.3 MB and had narrow permissions,
+strict parsing, no output stream and no reconnect. Those properties remain valid as offline parser
+facts, but the builds are now withdrawn because `connect()` itself may take ownership of the single
+broker fd. They must not be installed or started. Reconnect/backoff and an input-only label do not
+repair the architecture.
+
+The safe in-place replacement is v0.6 under the same package/signature. Its isolated release source
+set has no permissions, service, socket, broker-port constants, DUML, `Parcel`, Binder application
+transaction, external Activity launch or process execution. It performs only a user-triggered
+read-only inventory of the `protocol` Binder descriptor plus live package/UID/signature/ABI/
+debuggable/SELinux/upgrade-marker facts. It is a work-only admission probe, not a status listener or
+RID control, and does not belong in the MIT app.
 
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus
@@ -797,27 +804,31 @@ offline during the area/country experiments, so they provide no over-the-air Rem
 Unless an item explicitly enters a separately authorized, capability-gated set/readback procedure,
 the remaining probes are read-only.
 
-1. Obtain a legitimate current-session SDK/FlySafe inventory result or use the single long-lived
-   rootless `40007` observer to see the official runtime populate both the area/version and
-   whitelist/support caches. Use only the resulting
-   V2/V3/V4 session and receiver; do not infer unsupported from passive absence, scan receiver
-   addresses, guess adjacent commands, or reuse the legacy record parser for modern protobuf data.
+1. Obtain a legitimate current-session SDK/FlySafe inventory result through a path that reuses the
+   official transport owner. First overwrite any historical observer with v0.6 and require its exact
+   live package/UID/signature/ABI/debuggable/SELinux/Binder gates. Do not open a second `40007` or
+   `40009` connection, infer unsupported from absence, scan receiver addresses, guess adjacent
+   commands, or reuse the legacy record parser for modern protobuf data.
 2. Use current official DJI Fly 1.21.10 for handler-level static mapping. Export the live
    controller's package-manager public base/split APKs only if exact embedded-build parity is
    needed. Do not repeat the exhausted public-key sweep over `0200`, and do not root or unlock it.
 3. Capture the long `0x03/0x44` home push and read `DistanceLimitedReason` while the user observes
    the effective limit, without starting motors on the user's behalf.
-4. Use the completed strict `0x11/0x1C` parser in a single long-lived, zero-write RC 2 localhost
-   `40007` observer. Retain only redacted parsed fields plus both higher-level failure names and
-   HMS 30331--30334. First capture one real Mini 5 Pro frame to confirm command type, sender,
-   receiver, and the seven-byte layout on this product. Do not expose the existing raw-capture API
-   or reconnect repeatedly.
+4. Reuse the completed strict `0x11/0x1C` parser only behind an official/system-identity or
+   in-process observation path that does not create a second broker client. Retain only redacted
+   parsed fields plus both higher-level failure names and HMS 30331--30334. First capture one real
+   Mini 5 Pro frame to confirm command type, sender, receiver, and the seven-byte layout. Do not
+   expose raw capture or fall back to localhost reconnects.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-6. Use the input-only RC 2 `40009` observer during DJI Fly's normal France-EID lifecycle to require
-   an official `KeyEIDSwitch` `0x03/0x77` GET and canonical ACK before considering any authorized
-   set/readback test. Keep aircraft/session binding explicit; the two direct-USB negative probes do
-   not prove the private route, and this France-only EID surface is not ordinary/global RID.
+6. After v0.6 gates, use the separately reviewed UID1000 transaction-1 Binder check only to classify
+   manager liveness; it does not admit a `Pack`. Recover the exact live manager/callback/Parcelable
+   ABI and prove that a candidate path preserves native selector 3 and retry 0 before considering a
+   France-EID Binder GET. The current adjacent-ABI tx4 artifact loses `maxRetryCnt` (defaulting to 2)
+   and uses selector 0, so it must not run. Prefer a reviewed in-process DJI Fly subject getter if
+   the no-op attach canary passes. Any accepted GET must still produce a canonical `KeyEIDSwitch`
+   `0x03/0x77` result/state, keep aircraft/session binding explicit, and remain France-only. Do not
+   use `40009` as a tap.
 7. Recover the RC 2 GNSS-to-RID operator-location injection path without exposing coordinates.
 8. Continue the aircraft-firmware path only from the verified `0802` trust boundary documented in
    [DJI_RID_FIRMWARE_RESEARCH.md](DJI_RID_FIRMWARE_RESEARCH.md). Obtain a lawful read-only plaintext

@@ -1,6 +1,6 @@
 # DJI Remote ID Firmware Research
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 ## Scope and boundary
 
@@ -34,6 +34,15 @@ The 2026-08-27 read-only inventory was:
 An outer RC local-storage string also reported `08.00.01.20`. It is not the same version layer as
 the canonical package value and must not be converted or compared as though the formats were
 equivalent. Package byte counts below are sums of module files, not single monolithic downloads.
+
+A 2026-08-28 offline re-audit of Assistant 2 `2.1.40.0` caches, logs, Local Storage, normal download
+locations, and retained work material found no exact `07.00.0100` signed config/module manifest,
+`0205` body, `framework.jar`, `services.jar`, or `dpad_fuli.apk`. A local third-party firmware index
+corroborates only that RC331 `07.00.0100` was released on 2025-09-17 with Mini 5 Pro support; it has
+no official module hashes. Consequently all exact-live Binder transaction/Parcelable, dpad UID/
+signer/manifest, `ro.debuggable`, and SELinux conclusions remain unknown. The recovered
+`10.00.0700/0205` material below is an adjacent comparison baseline and must not authorize a live
+transaction on `07.00.0100`.
 
 ## `rc331` adjacent-package diff
 
