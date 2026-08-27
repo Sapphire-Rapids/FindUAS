@@ -226,6 +226,14 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     default `2` (potentially three sends), while its selector `0` differs from DJI Fly product-139's
     native selector `3`. If those gaps cannot be closed, use a reviewed in-process getter that reuses
     DJI Fly's initialized subject; never fall back to a second broker socket.
+36. The work-only ARM64 JVMTI V0 canary (APK SHA-256
+    `387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`) is built but has never
+    been copied, installed or attached. Its no-DEX/no-permission/no-component carrier exports only
+    `Agent_OnAttach`; runtime calls are exactly `GetEnv(JVMTI)`, `GetVersionNumber` and one fixed
+    numeric log. It deliberately omits `GetLoadedClasses`/`JNIEnv` and all DJI classes/methods,
+    socket, file/property, process, Binder, DUML and SET paths. Never stage it before v0.6 closes
+    the live debug/ABI/package/helper/SELinux and target-load-path gates. Canary success proves only
+    loader/JVMTI reachability, not France EID, FAA/global RID or setter safety.
 
 ## Concurrency and state ownership
 

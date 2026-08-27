@@ -791,6 +791,16 @@ read-only inventory of the `protocol` Binder descriptor plus live package/UID/si
 debuggable/SELinux/upgrade-marker facts. It is a work-only admission probe, not a status listener or
 RID control, and does not belong in the MIT app.
 
+The next work-only artifact is an ARM64-only JVMTI V0 attach canary (APK SHA-256
+`387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`). Two clean builds are
+byte-identical. Independent manifest/ZIP/ELF/disassembly audit confirms no DEX, Android permission,
+component or shared UID; its single AArch64 library exports only `Agent_OnAttach` and executes only
+`GetEnv(JVMTI)`, `GetVersionNumber` and one fixed numeric log. It deliberately has no
+`GetLoadedClasses`, `JNIEnv`, class/method inspection, socket, file/property, process, Binder, DUML,
+GET or SET path. It has not been copied, installed or attached. Do not stage it until the complete
+v0.6 result closes live debug/ABI/package/helper/SELinux and actual target-load-path gates; even a
+success would prove only loader/JVMTI reachability, not EID/RID support.
+
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus
 HMS 30331--30334. Even `WORKING` or `isRidNormal=true` is only aircraft self-report; a simultaneous

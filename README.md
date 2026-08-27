@@ -148,6 +148,13 @@ RID 状态帧以及 FlySafe `0x03/0x09`/`0x03/0x42` push，但后续静态审计
 `1746446e94bdb9df3c7ccb4cf1a1244fb200728827405891d61fcdc1a7941475`；它仍是 work-only 研究工具，
 不进入本 MIT 应用的产品能力。
 
+另一个 work-only 工件是 ARM64 JVMTI V0 attach canary，SHA-256 为
+`387fdf364a2da9cb6715b697af59ab13f91466df18537b6aceeb671cb78e70ed`。两次全新构建字节一致，
+独立审计确认 APK 无 DEX、权限、组件或 shared UID；唯一 AArch64 library 只执行
+`GetEnv(JVMTI)`、`GetVersionNumber` 和一条固定数值日志。它不枚举类、不取得 `JNIEnv`，也不含
+socket、文件/属性、进程、Binder、DUML、GET 或 SET。该工件尚未复制、安装或 attach；必须先取得
+v0.6 的完整实机门禁，且即使 attach 成功也只证明加载/JVMTI 可达，不证明 EID/RID 支持。
+
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
 platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因此没有取得 shell，也没有执行
 `adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB 存储都属于飞机，而不是 RC 2；一次
