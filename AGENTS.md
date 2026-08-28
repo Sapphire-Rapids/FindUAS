@@ -205,20 +205,23 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     remain true, but `connect()` itself can take over the single active `40007`/`40009` fd. Never
     install or start those versions, reconnect them, or reuse their live procedure. Their 44/44,
     31/31 and 20/20 tests cover offline decoding only, not broker coexistence safety. The safe
-    replacement v0.7 keeps the same package/signature for an in-place update but contains no
+    replacement v0.8 keeps the same package/signature for an in-place update but contains no
     permissions, service, socket, DUML, `Parcel`, DJI protocol Binder application transaction,
     external Activity launch or process execution. It only inventories the live Binder descriptor,
-    named package/process/UID/path/native-library facts and observer-view access; report
-    schema/timestamps and a
+    named package/process/UID/path/native-library facts, fixed package/DEX/framework/broker hashes,
+    and observer-view access; report schema/timestamps and a
     local clipboard copy do not broaden that boundary. Keep it work-only and do not describe a
-    successful probe as a RID result or authorization.
+    successful probe as a RID result or authorization. The current artifact is versionCode 8,
+    SHA-256 `b67a99621440088a39d212483d2de69a47fdc26850b59ed7fecfa9e1e8c70fb1`,
+    2,477,789 bytes; 24 tests, lint, manifest/signature/zipalign and app-class DEX denylist pass,
+    and three clean builds match byte-for-byte.
 34. Product-139 France EID and FlySafe type-6 are separate mechanisms. The exact France lane is
     GET `[02]`, SET `[00]/[01]`, GET ACK `[result,state]`, SET ACK `[result]`, 500 ms and retry 0;
     it is not FAA/global RID. Two fixed direct-USB clear GET routes returned no canonical ACK, so
     the live private DJI Fly route/state is still unknown. The old `EU_CE_enable_c0_rid_0` hash
     parameter is an app-owned EU/CE/C0 policy input; current F7 status `03` provides no metadata,
     snapshot, or rollback target, so F9 must not be sent.
-35. The current rootless admission sequence is fail closed: install v0.7 over any historical
+35. The current rootless admission sequence is fail closed: install v0.8 over any historical
     observer; require its exact live package/UID/signature/ABI/debuggable/SELinux/upgrade-marker and
     Binder-descriptor results. The adjacent stock `dpad_fuli` Shell page is not an admitted caller:
     opening it automatically attempts `adb shell su`, writes a test command and runs `adb version`,
@@ -231,7 +234,13 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     adjacent-ABI artifact fails those final gates: `maxRetryCnt=0` is not parceled and reconstructs as
     default `2` (potentially three sends), while its selector `0` differs from DJI Fly product-139's
     native selector `3`. If those gaps cannot be closed, use a reviewed in-process getter that reuses
-    DJI Fly's initialized subject; never fall back to a second broker socket.
+    DJI Fly's initialized subject; never fall back to a second broker socket. Static enumeration of
+    every externally reachable `dpad_fuli` component found no fixed-argv, output-preserving UID1000
+    caller: `DevActivity` ignores Intent extras, the Shell Activity is private and invokes the unsafe
+    root probe, the receiver's `cmd` accepts only literal `fuli_continue`, and the exported service
+    has no Binder interface. Android 11 `attach-agent` separately requires
+    `android.permission.SET_ACTIVITY_WATCHER`; an ordinary debuggable carrier or `/system/bin/cmd`
+    child does not inherit shell/system identity and cannot bypass that check.
 36. The work-only ARM64 JVMTI V0 canary (APK SHA-256
     `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`) is built but has never
     been copied, installed or attached. Its no-DEX/no-permission/no-component carrier exports only
@@ -239,7 +248,7 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     `DisposeEnvironment` and one fixed
     numeric log. It deliberately omits `GetLoadedClasses`/`JNIEnv` and all DJI classes/methods,
     socket, file/property, process, Binder, DUML and SET paths. The previous artifact lacked
-    environment disposal and is revoked. Never stage V0 before v0.7 plus the caller gate close
+    environment disposal and is revoked. Never stage V0 before v0.8 plus the caller gate close
     the live debug/ABI/package/helper/SELinux and target-load-path gates. Canary success proves only
     loader/JVMTI reachability, not France EID, FAA/global RID or setter safety.
 37. N3Live evidence is pinned to revision `bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0`.
@@ -270,7 +279,7 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     exactly the generated `electronicIDBroadcastOn` and `electronicIDBroadcastExisted` thunk
     signatures, checks shared-ClassLoader cardinality, cleans all references/allocations, disposes
     its JVMTI environment, and logs numeric counts. It does not load/initialize a class, access a
-    member, invoke Java, GET/LISTEN/SET, or use socket/Binder/DUML. Never stage it before v0.7 and
+    member, invoke Java, GET/LISTEN/SET, or use socket/Binder/DUML. Never stage it before v0.8 and
     V0 pass their separate gates; success proves topology only, not EID readability or RID control.
 
 ## Concurrency and state ownership

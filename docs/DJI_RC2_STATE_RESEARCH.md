@@ -829,14 +829,28 @@ facts, but the builds are now withdrawn because `connect()` itself may take owne
 broker fd. They must not be installed or started. Reconnect/backoff and an input-only label do not
 repair the architecture.
 
-The safe in-place replacement is v0.7 under the same package/signature. Its isolated release source
+The safe in-place replacement is v0.8 under the same package/signature. Its isolated release source
 set has no permissions, service, socket, broker-port constants, DUML, `Parcel`, DJI protocol Binder
 application transaction, external Activity launch or process execution. It performs only a
 user-triggered read-only inventory of the `protocol` Binder descriptor plus fixed-package UID,
 process visibility, signer, ABI, component, installed/native-library paths, observer-view DAC/
-SELinux access, readable expected-library hashes, `ro.debuggable`, and upgrade-marker facts. Its
-schema, run ID, timestamps and local clipboard copy do not broaden that boundary. It is a work-only
-admission probe, not a status listener or RID control, and does not belong in the MIT app.
+SELinux access, readable expected-library hashes, `ro.debuggable`, and upgrade-marker facts. v0.8
+also hashes fixed `dpad_fuli` APK/DEX entries, framework/server files and broker config/library files
+and keeps their three compatibility verdicts independent. Its schema, run ID, timestamps and local
+clipboard copy do not broaden that boundary. The 2,477,789-byte artifact has SHA-256
+`b67a99621440088a39d212483d2de69a47fdc26850b59ed7fecfa9e1e8c70fb1`; 24 tests, lint,
+manifest/signature/zipalign and app-class DEX denylist pass, and three clean builds are identical.
+It is a work-only admission probe, not a status listener or RID control, and does not belong in the
+MIT app.
+
+The adjacent `dpad_fuli` package still does not supply the needed launcher. Static enumeration of
+all externally reachable components found no fixed-argv command path with stdout/stderr and exit
+status: `DevActivity` ignores Intent extras, `ShellCommandActivity` is private and immediately runs
+the unsafe root/ADB checks, the receiver's `cmd` value only recognizes `fuli_continue`, and the
+exported service returns no Binder. An ordinary carrier cannot substitute Android's shell command
+either: Android 11 `attach-agent` enforces `SET_ACTIVITY_WATCHER`, and spawning `/system/bin/cmd`
+does not change the calling app UID. This leaves the live V0 caller gate closed even if every v0.8
+fingerprint matches.
 
 The next work-only artifact is an ARM64-only JVMTI V0 attach canary (APK SHA-256
 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`). Two clean builds are
@@ -845,7 +859,7 @@ component or shared UID; its single AArch64 library exports only `Agent_OnAttach
 `GetEnv(JVMTI)`, `GetVersionNumber`, `DisposeEnvironment` and one fixed numeric log. It deliberately
 has no `GetLoadedClasses`, `JNIEnv`, class/method inspection, socket, file/property, process, Binder, DUML,
 GET or SET path. It has not been copied, installed or attached. Do not stage it until the complete
-v0.7 result and a separately audited side-effect-free caller close live debug/ABI/package/helper/
+v0.8 result and a separately audited side-effect-free caller close live debug/ABI/package/helper/
 SELinux and actual target-load-path gates; even a success would prove only loader/JVMTI reachability,
 not EID/RID support. The previous non-disposing build is revoked.
 
@@ -857,7 +871,7 @@ post-fix audit agree. It enumerates already-loaded classes once, matches exactly
 shared-ClassLoader cardinality, deletes all references/allocations, disposes the per-call JVMTI
 environment, and emits numeric counts only. It does not load or initialize a class, access a field,
 invoke Java, or use GET/LISTEN/SET, socket, Binder, or DUML. It has never been copied, installed, or
-attached. V1 must remain after the v0.7 and V0 admission gates; success would prove only semantic
+attached. V1 must remain after the v0.8 and V0 admission gates; success would prove only semantic
 anchor topology, not EID readability or any RID switch.
 
 The same-owner native route also has a potential raw-EID-ACK observation surface, but it has not
@@ -884,7 +898,7 @@ Unless an item explicitly enters a separately authorized, capability-gated set/r
 the remaining probes are read-only.
 
 1. Obtain a legitimate current-session SDK/FlySafe inventory result through a path that reuses the
-   official transport owner. First overwrite any historical observer with v0.7 and require its exact
+   official transport owner. First overwrite any historical observer with v0.8 and require its exact
    live package/UID/signature/ABI/debuggable/SELinux/Binder gates. Do not open a second `40007` or
    `40009` connection, infer unsupported from absence, scan receiver addresses, guess adjacent
    commands, or reuse the legacy record parser for modern protobuf data.
@@ -900,7 +914,7 @@ the remaining probes are read-only.
    expose raw capture or fall back to localhost reconnects.
 5. Compare that redacted onboard RID status with a simultaneous independent receiver capture after
    the user initiates motor start.
-6. After v0.7 gates and after a separately audited, side-effect-free, result-preserving UID1000
+6. After v0.8 gates and after a separately audited, side-effect-free, result-preserving UID1000
    caller exists, use the transaction-1 Binder check only to classify
    manager liveness; it does not admit a `Pack`. Recover the exact live manager/callback/Parcelable
    ABI and prove that a candidate path preserves native selector 3 and retry 0 before considering a
