@@ -402,6 +402,14 @@ The current UI may stage a rehearsal, start a local dry run, stop/roll back, and
 the fixed DJI USB read-only snapshot. There is deliberately no generic Remote ID switch; the
 France-only EID surface is GET-only; region writes are not implemented in the app. The receiver card
 exposes only read-only application/session diagnostics.
+`RIDConfigurationCatalog.currentBuild` is a payload-free, curated display-only inventory of reviewed
+RID surfaces. Its scope text explicitly records intentionally omitted app-cloud, opaque quality,
+and name-only debug surfaces. Every entry's `canWriteDevice` is hard-coded false. Keep
+synthetic-source entries separate from aircraft/controller entries, and maintain standalone evidence in the canonical
+[DJI research archive](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research), not here.
+The China UOM identifier and conditional real-name status are separate static-locked cards. Exact
+static parser closure does not make the runtime capability present, does not admit account/network
+Sync, and does not authorize exposing the identifier or a writer.
 On 2026-08-27 macOS could enumerate that aircraft/controller pair over USB, but DJI's MSDK 5.18.0
 supported-product list did not include the pair. USB enumeration is not a supported SDK session and
 does not authorize guessed private writes.

@@ -64,6 +64,11 @@ The pure-core model is intentionally small and fail-closed:
 - audit events are typed phase/profile/broadcast-intent/checklist/lease records only. They are
   memory-only and have no free text, identifiers, coordinates, packets, credentials, keys, or
   registration secrets.
+- `RIDConfigurationCatalog` presents a payload-free, curated truth-labelled display subset; every entry has
+  `canWriteDevice == false`, and the external synthetic source remains a separate scope rather
+  than an aircraft/controller setting. Its scope text explicitly records omitted app-cloud,
+  opaque-quality, and name-only debug surfaces. Detailed claims stay in the canonical
+  [DJI research archive](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research).
 
 The current source capability is fixed to `RIDLabSourceCapability.noRFBackend`:
 

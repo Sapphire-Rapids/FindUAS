@@ -123,6 +123,142 @@ do {
     check(!lab.sourceCapability.canWriteDevice, "no-RF backend cannot write a device")
     check(!lab.sourceCapability.canChangeDeviceRegion, "no-RF backend cannot change a device region")
 
+    let ridConfigurationSurfaces = RIDConfigurationCatalog.currentBuild
+    let ridConfigurationIDs = Set(ridConfigurationSurfaces.map(\.id))
+    check(ridConfigurationSurfaces.count == 13, "RID configuration catalog contains the reviewed display subset")
+    check(ridConfigurationIDs.count == ridConfigurationSurfaces.count, "RID configuration catalog IDs are unique")
+    check(
+        ridConfigurationIDs == Set(RIDConfigurationSurfaceID.allCases),
+        "RID configuration catalog covers every declared surface ID"
+    )
+    check(
+        Set(ridConfigurationSurfaces.map(\.truthClass)) == Set(RIDConfigurationTruthClass.allCases),
+        "RID configuration catalog exercises every truth classification"
+    )
+    check(
+        ridConfigurationSurfaces.allSatisfy { !$0.canWriteDevice },
+        "every RID configuration surface is device-write locked"
+    )
+    check(
+        RIDConfigurationCatalog.safetyBoundaryText == "只读目录 · 当前构建不写飞机、遥控器或接收器",
+        "RID configuration catalog keeps the fixed no-device-write safety statement"
+    )
+    check(
+        RIDConfigurationCatalog.privacyBoundaryText.contains("不显示原始载荷") &&
+            RIDConfigurationCatalog.privacyBoundaryText.contains("密钥") &&
+            RIDConfigurationCatalog.privacyBoundaryText.contains("许可内容"),
+        "RID configuration catalog states the payload and secret-display boundary"
+    )
+    check(
+        RIDConfigurationCatalog.scopeBoundaryText.contains("精选显示目录") &&
+            RIDConfigurationCatalog.scopeBoundaryText.contains("App 云上报 gate") &&
+            RIDConfigurationCatalog.scopeBoundaryText.contains("云质量参数") &&
+            RIDConfigurationCatalog.scopeBoundaryText.contains("仅名称调试命令") &&
+            RIDConfigurationCatalog.scopeBoundaryText.contains("有意排除"),
+        "RID configuration catalog records its intentional exclusions"
+    )
+
+    let expectedRIDTruthClasses: [RIDConfigurationSurfaceID: RIDConfigurationTruthClass] = [
+        .workingStatus: .passive,
+        .ridCapability: .passive,
+        .regionSnapshot: .liveReadOnly,
+        .franceEID: .staticLocked,
+        .easaOperatorID: .staticLocked,
+        .japanDIPS: .managed,
+        .chinaUOM: .staticLocked,
+        .chinaUOMStatus: .staticLocked,
+        .euC0: .staticLocked,
+        .flySafeType6: .managed,
+        .cloudControlV2: .opaque,
+        .legacyDetection: .legacy,
+        .syntheticSource: .synthetic,
+    ]
+    for surface in ridConfigurationSurfaces {
+        check(
+            expectedRIDTruthClasses[surface.id] == surface.truthClass,
+            "RID configuration truth class is stable for \(surface.id.rawValue)"
+        )
+        check(
+            !surface.title.isEmpty && !surface.subtitle.isEmpty && !surface.truthSummary.isEmpty,
+            "RID configuration catalog copy is complete for \(surface.id.rawValue)"
+        )
+        let displayCopy = "\(surface.title) \(surface.subtitle) \(surface.truthSummary)".lowercased()
+        for prohibitedFragment in ["0x", "payload", "token", "cookie", "private key", "license id"] {
+            check(
+                !displayCopy.contains(prohibitedFragment),
+                "RID configuration card copy omits raw protocol and secret material"
+            )
+        }
+        check(
+            Set(Mirror(reflecting: surface).children.compactMap(\.label)) ==
+                Set(["id", "title", "subtitle", "truthClass", "scope", "truthSummary"]),
+            "RID configuration surface has no field for identity, coordinates, credentials, or raw frames"
+        )
+    }
+    let completeRIDCatalogCopy = (
+        ridConfigurationSurfaces
+            .map { "\($0.title) \($0.subtitle) \($0.truthSummary)" }
+            .joined(separator: " ") +
+            " \(RIDConfigurationCatalog.safetyBoundaryText)" +
+            " \(RIDConfigurationCatalog.privacyBoundaryText)" +
+            " \(RIDConfigurationCatalog.scopeBoundaryText)"
+    ).lowercased()
+    for prohibitedFragment in [
+        "latitude", "longitude", "纬度", "经度", "phone number", "手机号", "手机号码",
+        "电话号码", "联系电话", "telephone", "mobile number", "完整序列号",
+        "raw frame", "原始帧", "private key", "license id",
+    ] {
+        check(
+            !completeRIDCatalogCopy.contains(prohibitedFragment),
+            "RID configuration catalog omits identity, coordinate, phone, and raw-frame material"
+        )
+    }
+    let prohibitedRIDCatalogPatterns = [
+        #"\b[0-9]{7,}\b"#,
+        #"(?i)\b[0-9a-f]{24,}\b"#,
+        #"(?i)\b[a-z0-9+/]{40,}={0,2}\b"#,
+        #"[-+]?\d{1,3}\.\d{4,}\s*[,/]\s*[-+]?\d{1,3}\.\d{4,}"#,
+        #"(?i)(?:\+?\d[\s()-]?){7,}\d"#,
+        #"(?i)(?:latitude|longitude|lat|lon|纬度|经度)\s*[:：]?\s*[-+]?\d{1,3}\.\d{4,}"#,
+        #"(?i)(?:uas|operator|serial|registration|飞机|操作人|序列号|登记)[^。；\n]{0,16}[:：]\s*[a-z0-9](?:[a-z0-9 _-]{6,}[a-z0-9])"#,
+        #"(?i)(?:\b[0-9a-f]{2}[\s:-]){5,}[0-9a-f]{2}\b"#,
+    ]
+    for prohibitedPattern in prohibitedRIDCatalogPatterns {
+        check(
+            completeRIDCatalogCopy.range(of: prohibitedPattern, options: .regularExpression) == nil,
+            "RID configuration catalog blocks common identifier, phone, coordinate, secret, and raw-frame formats"
+        )
+    }
+    for privacyRegressionSample in [
+        "联系电话：+86 138-0013-8000",
+        "纬度 30.1234；经度 104.1234",
+        "UAS ID: TEST-ABCD-1234-XYZ",
+        "aa bb cc dd ee ff 00 11",
+    ] {
+        check(
+            prohibitedRIDCatalogPatterns.contains {
+                privacyRegressionSample.range(of: $0, options: .regularExpression) != nil
+            },
+            "RID configuration privacy patterns reject representative sensitive formats"
+        )
+    }
+    check(
+        expectedRIDTruthClasses.count == RIDConfigurationSurfaceID.allCases.count,
+        "RID configuration truth-class expectation covers every ID"
+    )
+    let syntheticRIDSurface = ridConfigurationSurfaces.first { $0.id == .syntheticSource }
+    check(
+        syntheticRIDSurface?.scope == .externalSyntheticSource &&
+            syntheticRIDSurface?.truthClass == .synthetic,
+        "synthetic RID source is explicitly separate from aircraft/controller surfaces"
+    )
+    check(
+        ridConfigurationSurfaces
+            .filter { $0.id != .syntheticSource }
+            .allSatisfy { $0.scope == .aircraftOrController },
+        "device-side RID surfaces cannot be presented as the synthetic source"
+    )
+
     let labStart = Date(timeIntervalSince1970: 1_800_000_000)
     try lab.beginPrecheck(profile: .euIntegrated, at: labStart)
     check(lab.phase == .precheck && lab.selectedProfile == .euIntegrated, "lab enters profile precheck")

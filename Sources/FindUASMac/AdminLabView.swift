@@ -106,6 +106,7 @@ struct AdminLabView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     aircraftBoundaryCard
+                    ridConfigurationCatalogCard
                     receiverDiagnosticsCard
                     scenarioCard
                     auditCard
@@ -188,19 +189,16 @@ struct AdminLabView: View {
                 Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
                     GridRow {
                         Text("通用 Remote ID")
-                        Button("切换") {}
-                            .disabled(true)
+                        Label("未实现", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
                         Text("本应用不实现：尚未发现并验证通用 setter；法国 EID 不能冒充通用开关")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     GridRow {
                         Text("地区事务")
-                        Picker("", selection: .constant("只读")) {
-                            Text("只读").tag("只读")
-                        }
-                        .labelsHidden()
-                        .disabled(true)
+                        Label("无 writer", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
                         Text("应用 writer 未上线；Sky 研究闭环已验证，Ground SET 与稳定设备对绑定仍未验证")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -213,6 +211,39 @@ struct AdminLabView: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            }
+            .padding(4)
+        }
+    }
+
+    private var ridConfigurationCatalogCard: some View {
+        GroupBox("RID 配置面目录 · 只读") {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(RIDConfigurationCatalog.safetyBoundaryText, systemImage: "lock.shield.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+
+                Text(RIDConfigurationCatalog.privacyBoundaryText)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Text(RIDConfigurationCatalog.scopeBoundaryText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 280), spacing: 12, alignment: .top)],
+                    alignment: .leading,
+                    spacing: 12
+                ) {
+                    ForEach(RIDConfigurationCatalog.currentBuild) { surface in
+                        RIDConfigurationSurfaceCard(surface: surface)
+                    }
+                }
+
+                Text("分类表示当前证据与访问成熟度，不表示某项功能已开启。外部合成源与 DJI 设备面严格分离。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .padding(4)
         }
@@ -552,6 +583,75 @@ private struct ReceiverStateBadge: View {
         Label(state.rawValue, systemImage: state == .connected ? "checkmark.circle.fill" : "circle.fill")
             .font(.caption.weight(.semibold))
             .foregroundStyle(state == .connected ? .green : state == .failed ? .red : .secondary)
+    }
+}
+
+private struct RIDConfigurationSurfaceCard: View {
+    let surface: RIDConfigurationSurface
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(surface.title)
+                        .font(.headline)
+                    Text(surface.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                RIDConfigurationTruthBadge(truthClass: surface.truthClass)
+            }
+
+            Text(surface.truthSummary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 12) {
+                Label(
+                    surface.scope.displayName,
+                    systemImage: surface.scope == .externalSyntheticSource
+                        ? "testtube.2"
+                        : "airplane"
+                )
+                Label("无设备写入", systemImage: "lock.fill")
+            }
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 146, alignment: .topLeading)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
+
+private struct RIDConfigurationTruthBadge: View {
+    let truthClass: RIDConfigurationTruthClass
+
+    var body: some View {
+        Text(truthClass.displayName)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(color.opacity(0.1), in: Capsule())
+    }
+
+    private var color: Color {
+        switch truthClass {
+        case .liveReadOnly: .green
+        case .passive: .teal
+        case .staticLocked: .secondary
+        case .managed: .orange
+        case .opaque: .purple
+        case .legacy: .brown
+        case .synthetic: .blue
+        }
     }
 }
 

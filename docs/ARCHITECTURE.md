@@ -90,6 +90,9 @@ RIDLabSession (FindUASCore)
         └─ bounded typed audit events (memory only)
 
         ╳ BluetoothManager / device writes / network / RecordStore / RF transmitter
+
+RIDConfigurationCatalog (FindUASCore)
+        └─ display-only truth labels; canWriteDevice = false for every entry
 ```
 
 `RIDLabSession` owns the selected `RIDLabProfile`, an inert `RIDLabBroadcastIntent`, a 5–15 minute
@@ -119,6 +122,12 @@ complete response envelope and returns normalized values or a typed unavailable 
 never converts unavailable EID to OFF and never derives the unknown RC/DJI Fly policy surface from
 FC/Sky/Ground. The receiver card remains separate and reads application/session state only:
 connection, live-target and FF01/assembled/decoded/rejected counts, and the detected FF01 wrapper.
+
+`RIDConfigurationCatalog` adds no transport. It is a curated display subset that distinguishes live read-only, passive,
+static-locked, managed, opaque, legacy, and separate synthetic-source surfaces so the UI does not
+render unavailable research as a working toggle; its scope text records intentionally excluded
+app-cloud, opaque-quality, and name-only debug surfaces. Detailed evidence remains canonical in
+[DJI-RC2-Mini5Pro-Research](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research).
 
 The bridge identifies only the observed DJI VID/PID routes and opens the first match. It does not
 read USB strings or bind a stable aircraft/controller pair, so this identity level is suitable only

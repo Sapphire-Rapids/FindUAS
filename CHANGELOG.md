@@ -16,6 +16,13 @@ stable releases begin.
   implemented in the app.
 - Added strict, hardware-free DJI frame/CRC/route/sequence/command/payload checks and region-state
   reconciliation checks.
+- Added a payload-free curated RID configuration-surface catalog and administrator cards that distinguish
+  live read-only, passive, static-locked, managed, opaque, legacy, and separate synthetic-source
+  entries. The UI records intentionally omitted app-cloud, opaque-quality, and name-only debug
+  surfaces. Every entry is hard-locked to `canWriteDevice == false`; misleading disabled toggle
+  and region controls were replaced by explicit “not implemented / no writer” labels.
+- Split the China UOM identifier from its conditional real-name status owner; both remain
+  static-locked and the account/network Sync action is not represented as a switch.
 
 ### Fixed
 
