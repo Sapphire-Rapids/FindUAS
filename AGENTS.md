@@ -240,7 +240,13 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     root probe, the receiver's `cmd` accepts only literal `fuli_continue`, and the exported service
     has no Binder interface. Android 11 `attach-agent` separately requires
     `android.permission.SET_ACTIVITY_WATCHER`; an ordinary debuggable carrier or `/system/bin/cmd`
-    child does not inherit shell/system identity and cannot bypass that check.
+    child does not inherit shell/system identity and cannot bypass that check. The stock Protocol
+    page is also prohibited for EID: it has no selector/retry controls, leaves selector 0 and loses
+    `maxRetryCnt` across Parcel, reconstructing retry 2. The preferred conditional V2 getter is
+    DJI Fly's own `JNIRawData.native_SendData`, which can reuse the initialized SessionMgr and return
+    raw ACK payload. Do not deploy it until current productId/deviceId/senderIndex/HostID,
+    product139/France/EID identity, loader and connection epoch are resolved from the live subject;
+    never combine it with a typed GET.
 36. The work-only ARM64 JVMTI V0 canary (APK SHA-256
     `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`) is built but has never
     been copied, installed or attached. Its no-DEX/no-permission/no-component carrier exports only

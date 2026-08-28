@@ -35,7 +35,7 @@ work.
 | N3Live command/DUML evidence | Pinned `bb254b0`: Goggles N3 USB IF4 framing/CRC and a 416-command template-symbol inventory; N3Live has no RC-local socket, RID decoder or selector parser | Keep separate from the retired observer's selector-0 target admission; neither proves clear O4 RF, and a symbol-table entry is not payload/route/product/setter proof |
 | RC 2 DJI Fly JVMTI V0 canary | Final APK SHA-256 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`; ARM64-only, no DEX/permission/component/shared UID; runtime is limited to `GetEnv(JVMTI)`, `GetVersionNumber`, `DisposeEnvironment` and one fixed numeric log | Built and independently audited, never copied/installed/attached. The earlier non-disposing build is revoked. Do not stage before v0.8 and a separately audited caller close live debug/ABI/helper/SELinux/target-load gates; success would prove only attach reachability |
 | RC 2 DJI Fly JVMTI V1 semantic anchors | Final APK SHA-256 `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`; counts two exact already-loaded France-EID thunks and shared ClassLoader only | Offline-only, never copied/installed/attached. It invokes no Java/GET/LISTEN/SET and follows v0.8 plus V0; success proves topology only |
-| Same-owner raw EID ACK observation | The product-139 response lambda retains `[result,state]` before Boolean folding; a native all-command observer runs before pending matching | Static only. No live admission until lock/thread/ABI/ID/callback/unload lifecycle is closed; it adds no GET or SET |
+| Same-owner raw EID GET/ACK | Current DJI Fly's `JNIRawData.native_SendData` can reuse the initialized SDK/SessionMgr and return the ACK application payload, preserving France-EID `[result,state]`; the older pre-converter/observer tap remains a fallback | Conditional static design only. No send until live productId/deviceId/senderIndex/HostID, product139/France/EID identity, loader and connection epoch are exact; never pair it with a typed GET |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
 | FindUAS replay/evidence validator | Feeds synthetic or redacted FF01 data through an isolated decoder and validator | Designed, not yet implemented |
@@ -169,12 +169,21 @@ method and has no GET/LISTEN/SET, socket, Binder, or DUML path. It has never bee
 or attached and cannot be considered until v0.8 and V0 separately pass. A success would establish
 semantic-anchor topology only, not an EID getter or RID control.
 
-The current same-owner native path preserves raw `0x03/0x77` `[protocol_result,state]` immediately
-before the product-139 converter folds nonzero results into `Boolean(false)`. A native all-command
-observer also runs before the pending matcher. Neither is live-admissible yet: the observer's
-add/remove/iteration path has no closed locking proof, and receive-thread serialization, C++
-function ABI, observer-ID collision, callback removal, and unload lifetime remain unresolved. No
-breakpoint/probe/hook or dynamic registration has been run, and neither surface sends a GET or SET.
+Current DJI Fly also contains a narrower conditional path than native tapping:
+`JNIRawData.native_SendData(productId,deviceId,...)` constructs the request inside the loaded SDK,
+reuses its ProductMgr/RawMgr/SessionMgr and returns the raw ACK application payload through
+`SendInterface.onReceivedData`. It can express the current France-EID object as selector 3, retry 0,
+timeout 500 and body `[02]`, preserving `[protocol_result,state]` without a second broker socket or
+observer-map mutation. It is not live-admissible until productId/deviceId/senderIndex/HostID,
+product139/France/EID identity, ClassLoader and connection epoch are resolved from the current
+subject/session; any unknown stops before send, and a typed GET must not run alongside it. The older
+pre-converter point and all-command observer remain static fallbacks whose locking/thread/ABI/
+lifecycle gates are still open. No GET, SET, hook or dynamic registration has been run.
+
+The stock `dpad_fuli` Protocol page cannot substitute for that route. It exposes no selector or
+retry control, leaves selector at 0, and its `Pack` Parcel omits `maxRetryCnt`, reconstructing it as
+2 in system_server; `ActQueue` can therefore perform the initial send plus two retransmissions.
+It must not be used for `03/77`, and its push-listen button also writes an SD-card log.
 
 The Mac host opened the RC 2 ADB bulk endpoints and sent `CNXN`, but the controller returned neither
 `AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy and libusb

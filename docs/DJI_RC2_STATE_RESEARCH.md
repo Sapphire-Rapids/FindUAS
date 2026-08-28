@@ -874,15 +874,25 @@ invoke Java, or use GET/LISTEN/SET, socket, Binder, or DUML. It has never been c
 attached. V1 must remain after the v0.8 and V0 admission gates; success would prove only semantic
 anchor topology, not EID readability or any RID switch.
 
-The same-owner native route also has a potential raw-EID-ACK observation surface, but it has not
-passed live admission. In current `libsdk_jni.so`, product-139's `0x03/0x77` response lambda still
-holds the correlated raw `[protocol_result,state]` before its converter folds every nonzero result
-into `Boolean(false)`. A native all-command observer is called before the pending matcher and could
-therefore see an ACK later consumed by DJI Fly. Static recovery did not find locking around its
-add/remove/map iteration, however, and receive-worker serialization, `std::__ndk1::function` ABI,
-observer-ID collision, callback removal, and agent-unload lifetime remain open. No live
-breakpoint/probe/hook or dynamic registration is admitted, and this surface sends neither GET nor
-SET by itself.
+The preferred conditional same-owner baseline path is now DJI Fly's existing
+`JNIRawData.native_SendData(productId,deviceId,...)`. It builds a request in the loaded SDK, reuses
+the current ProductMgr/RawMgr/SessionMgr and returns the ACK application payload through
+`SendInterface.onReceivedData`. For the current France-EID object it can preserve selector 3,
+retry 0, timeout 500 and raw `[protocol_result,state]`, avoiding a second broker client, native
+observer-map mutation and the Boolean converter. It has not passed live admission: current
+productId/deviceId/senderIndex/HostID, product139/France/EID identity, ClassLoader and connection
+epoch must be recovered from the current subject/session, and no typed GET may run in parallel.
+Any unknown stops before send.
+
+The older pre-converter point and all-command observer remain fallback evidence only. Static
+recovery did not find locking around observer add/remove/map iteration, and receive-worker
+serialization, `std::__ndk1::function` ABI, observer-ID collision, callback removal and agent-unload
+lifetime remain open. No live GET/SET, breakpoint/probe/hook or dynamic registration has run.
+
+The stock `dpad_fuli` Protocol page is not an exact alternative: it has no selector/retry fields,
+leaves selector 0, and its `Pack` Parcel omits `maxRetryCnt`, reconstructing retry max 2 in
+system_server. It can therefore send up to three times and must not be used for `03/77`; its
+push-listen callback also writes an SD-card log.
 
 The safest onboard check is an official-runtime read-only listener for
 `KeyRidWorkingStatusPush`/`IUASRemoteIDManager`, retaining both `failResion` and `failReason`, plus

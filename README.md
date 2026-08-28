@@ -160,6 +160,14 @@ selector 为 0 的帧，因此其 payload 在 RC 2 localhost broker 边界是明
 佐证 DUML framing/CRC。其 416-command 表来自未随仓库提供的 native library 的 template 符号
 抽取，只能证明命令名称/常量线索，不能证明 payload、目标地址、当前产品支持或安全写法。
 
+当前 DJI Fly 1.21.10 还存在一条条件式、更窄的 same-owner raw GET 候选：其自带
+`JNIRawData.native_SendData` 可复用已初始化的 SDK/SessionMgr，并由 callback 返回 ACK 应用
+payload；对 France `03/77` 即可保留 `[protocol_result,state]`，不必新开 broker socket 或
+注册 native observer。它尚未 live-admitted：productId/deviceId/senderIndex、HostID override、
+product139/France/EID 身份、loader 与连接 epoch 必须从当前 subject/session 逐项验证，任一未知
+都不得发送，也不能同时调用 typed GET。相邻 stock `dpad_fuli` 协议页不是替代方案：它不能
+表达 selector 3，并因 `Pack` Parcel 遗漏把 retry 恢复为 2，最坏会初发后再重发两次。
+
 另一个 work-only 工件是 ARM64 JVMTI V0 attach canary，SHA-256 为
 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`。此前缺少
 `DisposeEnvironment` 的工件已撤销；修正版两次全新构建字节一致，

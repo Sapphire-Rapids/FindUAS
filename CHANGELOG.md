@@ -97,6 +97,13 @@ stable releases begin.
   separate retired-observer fact at the RC-local broker and does not show that O4 is clear.
   N3Live's 416-command list is extracted template-symbol metadata from an uncommitted input
   library, not a call graph or proof of payload, route, product support or safe setter semantics.
+- Recovered a smaller conditional same-owner France-EID baseline route in current DJI Fly 1.21.10:
+  `JNIRawData.native_SendData` reuses the initialized SDK/SessionMgr and returns raw ACK application
+  payload through its existing callback, preserving `[protocol_result,state]`. It remains offline-
+  only until current productId/deviceId/senderIndex/HostID, product139/France/EID identity, loader
+  and connection-epoch gates are closed. Also rejected the stock `dpad_fuli` Protocol page: it has
+  no selector control and its Parcel path reconstructs retry max 2, so it cannot reproduce the
+  official selector-3/retry-0 request object.
 - Rebuilt the offline-only ARM64 JVMTI V0 canary with mandatory `DisposeEnvironment`. Final APK
   SHA-256 is `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`; the earlier
   non-disposing build is revoked. Neither V0 nor V1 has been copied, installed or attached. The
