@@ -31,10 +31,11 @@ work.
 | FlySafe `RID_UNLOCK` | DJI officially defines license type 6, with level 1 for EU RID unlock and level 2 for China RID unlock. The supported flow is account login, signed-license download, FC-SN filtering, push/pull, then enable/disable; a retained delegate branch suggests a matching enabled license may produce `NO_BROADCAST` | Leading candidate for a stable, authorization-backed laboratory switch; keep read-only until Mini 5 Pro inventory/support and independent RF behavior are verified. Never synthesize or replay a license |
 | EU C0 RID policy | Current official DJI Fly pairs `IsEuCeEnableC0Rid` with `EU_CE_enable_c0_rid_0` (hash `0xF80992FE`), type 0 and width 1; business logic owns it from cloud country membership plus C0 certification, while both current F7 routes returned status `03` rather than metadata | Observation-only; no F8 snapshot/rollback target or RF semantics exist, so F9 is a hard do-not-send and this is not a user switch |
 | Broadcast-effect policy | Current official DJI Fly pairs `CccBroadcastSignalQuality` with `ccc_broadcast_signal_quality_0` (hash `0xD7757AD2`) and IntMsg config handlers; business logic packs bitmap/quality | Observation-only; converter type does not establish wire width, and unknown bitmap meanings make `0`/`1` unsafe on/off assumptions |
-| RC 2 localhost status observer | Historical v0.1–v0.4 opened a second input-only `40007`/`40009` connection, but adjacent official framework evidence now proves these endpoints default to a single active fd and a newcomer may replace DJI Fly's connection | Withdrawn: do not install or start. Offline parsers remain research material; v0.8 replaces it in place with a no-permission/no-socket environment probe and still has no switch semantics |
+| RC 2 localhost status observer | Historical v0.1–v0.4 opened a second input-only `40007`/`40009` connection, but adjacent official framework evidence now proves these endpoints default to a single active fd and a newcomer may replace DJI Fly's connection | Withdrawn: do not install or start. Offline parsers remain research material; v0.10 is the current no-permission/no-socket/zero-send replacement candidate and still has no switch semantics or device-runtime result |
 | N3Live command/DUML evidence | Pinned `bb254b0`: Goggles N3 USB IF4 framing/CRC and a 416-command template-symbol inventory; N3Live has no RC-local socket, RID decoder or selector parser | Keep separate from the retired observer's selector-0 target admission; neither proves clear O4 RF, and a symbol-table entry is not payload/route/product/setter proof |
-| RC 2 DJI Fly JVMTI V0 canary | Final APK SHA-256 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`; ARM64-only, no DEX/permission/component/shared UID; runtime is limited to `GetEnv(JVMTI)`, `GetVersionNumber`, `DisposeEnvironment` and one fixed numeric log | Built and independently audited, never copied/installed/attached. The earlier non-disposing build is revoked. Do not stage before v0.8 and a separately audited caller close live debug/ABI/helper/SELinux/target-load gates; success would prove only attach reachability |
-| RC 2 DJI Fly JVMTI V1 semantic anchors | Final APK SHA-256 `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`; counts two exact already-loaded France-EID thunks and shared ClassLoader only | Offline-only, never copied/installed/attached. It invokes no Java/GET/LISTEN/SET and follows v0.8 plus V0; success proves topology only |
+| RC 2 DJI Fly JVMTI V0 canary | Final APK SHA-256 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`; ARM64-only, no DEX/permission/component/shared UID; runtime is limited to `GetEnv(JVMTI)`, `GetVersionNumber`, `DisposeEnvironment` and one fixed numeric log | Built and independently audited, never copied/installed/attached. The earlier non-disposing build is revoked. Do not stage before a complete live v0.10 result and a separately audited caller close live debug/ABI/helper/SELinux/target-load gates; success would prove only attach reachability |
+| RC 2 DJI Fly JVMTI V1 semantic anchors | Final APK SHA-256 `ccdf198c83ecdd3d33a54192e2bffeb9ab89ce65289497643d16f5a00bff62b2`; counts two exact already-loaded France-EID thunks and shared ClassLoader only | Offline-only, never copied/installed/attached. It invokes no Java/GET/LISTEN/SET and follows v0.10 plus V0; success proves topology only |
+| RC 2 DJI Fly JVMTI V2.1 route resolver | Final APK SHA-256 `7f0159619f89f7c6a9849b1028003a1070d97988838da7a6ef027e09626ada0d`; matches fixed basename/build-ID/RVA/signature profiles and the product-139 France-EID semantic route, but has an immutable-zero exception gate and no transport path | Offline-only, never staged/installed/attached. It exits at `EXCEPTION_BOUNDARY_UNPROVEN`, does not establish whole-file runtime identity, and must not be installed or attached |
 | Same-owner raw EID GET/ACK | Current DJI Fly's `JNIRawData.native_SendData` can reuse the initialized SDK/SessionMgr and return the ACK application payload, preserving France-EID `[result,state]`; the older pre-converter/observer tap remains a fallback | Conditional static design only. No send until live productId/deviceId/senderIndex/HostID, product139/France/EID identity, loader and connection epoch are exact; never pair it with a typed GET |
 | FindUAS local dry-run control | Exercises precheck, staging, short lease, stop, rollback, lockout, and audit behavior without touching hardware | Implemented as a safety preview |
 | FindUAS validation profile selector | Selects the expected fields and conditions for one versioned regional profile | Implemented as metadata and labelled “does not change device region” |
@@ -133,22 +134,24 @@ use and must not be installed or started. Exact `07.00.0100` code remains unprov
 transport risk requires fail-closed behavior. The old parsers and their tests remain offline-only
 research artifacts.
 
-Version 0.8 keeps package name `com.finduas.ridobserver` and the same signer solely to overwrite an
-installed historical build. It is built from an isolated safe source set and requests no Android
-permissions. It has one launcher Activity and no service, receiver or provider; contains no socket,
-`40007`/`40009`, DUML, `Parcel`, DJI protocol Binder application transaction, external Activity
-launch or process execution; and never starts a DJI component or writes a property. A manual
-snapshot only checks the `protocol` Binder's liveness/descriptor and reports fixed-package UID,
-process visibility, signer, ABI, component, installed/native-library paths, observer-view DAC/
-SELinux access, readable expected-library hashes, `ro.debuggable`, and upgrade-marker facts. v0.8
-adds fixed read-only hashes for the `dpad_fuli` APK/DEX entries, `framework.jar`/`services.jar`, and
-the broker's `dji.json`/`libduml_frwk.so`, with independent package-code, framework/server-ABI and
-broker verdicts. Its schema, run ID, timestamps and clipboard copy make the report auditable; they
-do not broaden the probe. The 2,477,789-byte APK has SHA-256
-`b67a99621440088a39d212483d2de69a47fdc26850b59ed7fecfa9e1e8c70fb1`; 24 tests, lint,
-manifest/signature/zipalign and app-class DEX denylist pass, and three clean builds are identical.
-Even a matching descriptor is an environment gate, not a RID state, transaction authorization or
-switch.
+Version 0.10 keeps package name `com.finduas.ridobserver` and the same signer solely to overwrite an
+installed historical build. It requests no Android permission, has one launcher Activity, and has
+no service, receiver, provider, socket, `40007`/`40009`, DUML, `Parcel`, DJI application Binder
+transaction, process execution, file persistence, network send, packaged native library, or
+agent/library attach/load path. It retains v0.8's manual read-only Binder/package/UID/path/hash
+inventory and adds fail-closed identity of only its own mapped `libart.so`: two identical normalized
+maps snapshots, strict nonzero/page-aligned/bounded geometry, nonzero device and positive inode,
+symlink-safe descriptor identity, nanosecond metadata stability, whole-file SHA-256/GNU build ID,
+and two named known-profile ranges that it never resolves or invokes. Activity recreation reuses
+the process-lifetime snapshot rather than starting another scan.
+
+The reviewed 2,570,983-byte candidate has SHA-256
+`fdad29bfb1237bc224a805d6eb5a99358a044bd226610d9f0fc33975d94b606c`.
+All 43 tests, lint, manifest/final-DEX/signature/zipalign checks, 21 adversarial mutations and two
+byte-identical clean builds passed; independent audit found no unresolved P0–P3. It has not been
+copied, installed, or run on RC 2, so no v0.10 device-runtime result is claimed. Sealed v0.8/v0.9
+are provenance records, not current staging instructions. Even a matching descriptor or ART
+identity is an environment gate, not a RID state, transaction authorization or switch.
 
 N3Live was reviewed at pinned revision
 [`bb254b0`](https://github.com/brendan779/N3Live/tree/bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0).
@@ -166,15 +169,65 @@ already-loaded classes, counts the exact `electronicIDBroadcastOn` and
 `electronicIDBroadcastExisted` generated thunk signatures and their shared ClassLoader, cleans all
 references/allocations, disposes its JVMTI environment, and logs numeric counts. It invokes no Java
 method and has no GET/LISTEN/SET, socket, Binder, or DUML path. It has never been copied, installed,
-or attached and cannot be considered until v0.8 and V0 separately pass. A success would establish
+or attached and cannot be considered until v0.10 and V0 separately pass. A success would establish
 semantic-anchor topology only, not an EID getter or RID control.
+
+The V2.1 native route resolver is now sealed for offline evidence only. Its APK SHA-256 is
+`7f0159619f89f7c6a9849b1028003a1070d97988838da7a6ef027e09626ada0d`; its sole ARM64 library
+SHA-256 is `3c2a293e167531ecc9d352c2825ad20c8f35a3e829c66aad6896d06eabad3365`.
+It checks exact build/symbol/RVA/signature profiles and the product-139 France `EIDSwitch` route,
+but an immutable-zero private exception gate forces `EXCEPTION_BOUNDARY_UNPROVEN`. It contains no
+DEX/component, request, listener or transport path and has never been staged. Do not install or
+attach it.
+
+Connection mutation is not globally single-worker. The main datalink add/remove path is posted to
+the `RunOnWorkThread` worker, but ProductMgr callbacks inherit an unresolved listener-producer thread
+and the complete HardwareLayer writer set is not closed. A worker-tail recheck is therefore only a
+`STABLE_OBSERVED` sample. Any future request requires nested-safe `active_mutators`, monotonic
+`connection_epoch` double-checks and a reviewed reader/writer `route_gate` shared by all route writers
+and the final request closure; callback, timeout, failure and rollback finalizers must carry an operation token and
+re-resolve. Missing coverage or unknown lock order disables both GET and SET.
+
+A three-symbol native catch bridge is also insufficient. The exact minimal NDK 27 wrapper imports
+`_ZSt9terminatev` in addition to personality and begin/end-catch, while live exception GOT/PLT
+coherence across the three interposable DJI DSOs has not been proved. The reduced exact-build
+candidate uses stack SSO `"EIDSwitch"`, stack prefixes `[0,4,0]`, official abstraction lookup and
+direct string-characteristics lookup. It removes CacheKey allocation but still crosses target
+LSDA/shared-owner cleanup, so it remains NOT ADMITTED and cannot enable GET or SET.
+
+Runtime library identity is likewise fail-closed. The offline official DJI Fly 1.21.10 APK profile
+has `extractNativeLibs=true` and three DEFLATED target entries. The live RC 2 package must first
+match that profile; only then may its extracted regular ELF files be considered. A future carrier
+must combine exact whole-ELF SHA-256 with two maps device/inode/offset
+snapshots and non-writable `PT_LOAD` runtime/file byte comparison. Any `apk!/`, deleted,
+memfd/anonymous, unreadable or drifting source is terminal; build ID and an in-memory hash are not
+fallbacks. This gate is designed but not implemented and does not authorize V2.1.
+
+Raw-GET terminal lifetime is a separate unresolved gate. ACK delivery precedes pending-node erase,
+timer delivery precedes copied-owner destruction, and explicit cancellation only posts core cleanup
+after removing the SDK `CallbackStopper` ID. Neither a Java callback, cancel return nor the old fixed
+100 ms quiet window proves quiescence. A future GET requires ordered registration,
+callback-return/in-flight zero, exact pending/Stopper absence at a post-terminal worker-tail fence,
+stable lifecycle/epoch and native mapping retention; otherwise the result is `UNKNOWN` with no retry.
+
+The corresponding zero-send state-machine contract distinguishes operation generation from the
+numeric handle, requires a MappingLease before task/callback pointer escape, tracks SDK admission
+and helper in-flight separately, and commits only inside a completed worker-tail fence. The exact
+worker-only `SessionMgr::IsSending` predicate can conservatively establish absence of the unique
+datalink/`03/77`/receiver tuple but is not handle-specific. `CallbackStopper` has no read predicate;
+`RemoveID` is never a query. The missing locked membership and lifecycle/fence hooks keep this
+design NOT ADMITTED.
 
 Current DJI Fly also contains a narrower conditional path than native tapping:
 `JNIRawData.native_SendData(productId,deviceId,...)` constructs the request inside the loaded SDK,
 reuses its ProductMgr/RawMgr/SessionMgr and returns the raw ACK application payload through
-`SendInterface.onReceivedData`. It can express the current France-EID object as selector 3, retry 0,
-timeout 500 and body `[02]`, preserving `[protocol_result,state]` without a second broker socket or
-observer-map mutation. It is not live-admissible until productId/deviceId/senderIndex/HostID,
+`SendInterface.onReceivedData`. It can express a selector-3, timeout-500, body-`[02]` France-EID
+request and deliberately set retry to `0` for a laboratory single-shot, preserving
+`[protocol_result,state]` without a second broker socket or observer-map mutation. That single-shot
+profile is not the same claim as DJI Fly's typed policy: the request constructor starts at retry
+`3`; static EID registration gives Characteristics `+0x30` the value `0`, so the initial typed GET
+retains `3`. The helper clears it only if a runtime update makes that byte nonzero, while typed SET
+retains `3`. It is not live-admissible until productId/deviceId/senderIndex/HostID,
 product139/France/EID identity, ClassLoader and connection epoch are resolved from the current
 subject/session; any unknown stops before send, and a typed GET must not run alongside it. The older
 pre-converter point and all-command observer remain static fallbacks whose locking/thread/ABI/
@@ -186,8 +239,14 @@ retry control, leaves selector at 0, and its `Pack` Parcel omits `maxRetryCnt`, 
 It must not be used for `03/77`, and its push-listen button also writes an SD-card log.
 
 The Mac host opened the RC 2 ADB bulk endpoints and sent `CNXN`, but the controller returned neither
-`AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy and libusb
-backends and with platform-tools 35.0.2. Consequently no shell or `adb install` was used. Full USB
+`AUTH` nor `CNXN`. The transport remained `offline` with platform-tools 37's legacy/libusb
+backends, the pinned Dr-Muh pre-auth profile, and isolated version/MAXDATA/banner/checksum changes.
+Static disassembly of the exact adjacent unstripped `adbd` now explains the stop: DJI replaces
+ordinary `ro.adb.secure` policy and its `CNXN` branch drops the packet when
+`ro.boot.mp_state=production` and `ro.boot.dbg_cnt<1`, before `send_auth_request()` or
+`send_connect()`. A first-packet public-key branch is only an untested, state-changing hypothesis;
+it was not sent. See [`RC2_ADB_HANDSHAKE_RESEARCH.md`](RC2_ADB_HANDSHAKE_RESEARCH.md).
+Consequently no shell or `adb install` was used. Full USB
 parentage then showed that the visible 45 GB and 256 GB storage LUNs both belonged to the aircraft,
 not the RC 2. An interim APK copy on aircraft internal storage was deleted only after its exact hash
 matched the known work artifact, and the aircraft volume was safely unmounted. The RC 2 microSD was
@@ -195,18 +254,21 @@ not exported through the current USB configuration. After the first Mac-formatte
 the RC 2 initialized the card itself; the Mac then copied hash-matched artifacts through a separate
 reader. The user successfully installed the DJI-signed PackageInstaller/FileManager updates and an
 older observer APK, proving the manual no-root/no-ADB update path. The older observer must remain
-stopped and be overwritten by v0.8. At the latest check the RC 2 USB device remained visible but ADB
-was still `offline`; the Apple USB-C reader was connected with no visible medium, while both mounted
-45 GB/256 GB volumes still belonged to the aircraft. No v0.8 hardware result has yet been collected.
+stopped and, only after separate staging authorization, be overwritten by v0.10. At 2026-08-28
+13:11 CST, after both USB links were restored, the
+Mac again enumerated aircraft `2ca3:0020` and RC 2 `2ca3:1021`; ADB still reported the exact
+controller as `offline`, and no external storage volume was mounted. The earlier 45 GB/256 GB
+volumes were already proven to belong to the aircraft. No v0.10 hardware result has yet been
+collected.
 
-The v0.8 replacement cannot log in to a DJI account, observe broker traffic, obtain or upload a
+The v0.10 replacement cannot log in to a DJI account, observe broker traffic, obtain or upload a
 license, change a license's enabled state, or establish RF behavior. It only decides whether a later,
 separately reviewed system-identity or in-process read-only probe is even eligible to be considered.
 
 The adjacent stock `dpad_fuli` Shell page is not such a reviewed launcher. Opening it automatically
 attempts `adb shell su`, writes a test command and runs `adb version`; its executor discards stderr
 and exit status. It must not be opened for this work. V0/V1 require a separately audited,
-side-effect-free, result-preserving UID1000 caller even if every v0.8 environment field is favorable.
+side-effect-free, result-preserving UID1000 caller even if every v0.10 environment field is favorable.
 Static review of all externally reachable `dpad_fuli` components found no alternate fixed-command
 entry: `DevActivity` ignores extras, the Shell Activity is private and invokes the unsafe root probe,
 the receiver accepts only the literal `fuli_continue`, and the exported service exposes no Binder.
@@ -715,14 +777,20 @@ standard, contents, timing, or RF power.
 4. Specify and implement a capability-gated external source adapter, then validate its hardware
    identity, firmware, encoder, transport, RF interlock, lease, stop, rollback, and independent
    measurement in a controlled laboratory before enabling real transmission.
-5. If DJI SDK strategy or French EID behavior is still useful, first overwrite any historical
-   observer with v0.8 and collect its exact live ABI/UID/signature/debuggable/SELinux/Binder gates.
+5. If DJI SDK strategy or French EID behavior is still useful, only after separate staging
+   authorization overwrite any historical observer with v0.10 and collect its exact live ABI/UID/
+   signature/debuggable/SELinux/Binder/ART gates.
    Do not open the adjacent stock `dpad_fuli` Shell page; obtain a separately audited,
    side-effect-free, result-preserving UID1000 caller before V0, V1 or a Binder transaction.
    The independently reviewed UID1000 transaction-1 check classifies only manager liveness; it does
    not admit a `Pack`. Before any Binder GET, recover the exact live manager/callback/Parcelable ABI
-   and prove native selector 3 plus retry 0 are preserved. The current adjacent-ABI tx4 artifact is
-   prohibited because `maxRetryCnt` is omitted/defaults to 2 and its selector is 0. Prefer a reviewed
+   and prove the selector and deliberately chosen retry profile are preserved. The current
+   adjacent-ABI tx4 artifact is prohibited because `maxRetryCnt` is omitted/defaults to 2 and its
+   selector is 0. A reviewed raw GET may instead use an explicitly labelled retry-0 laboratory
+   single-shot; it must not describe that choice as the typed GET's still-unresolved runtime value.
+   Before either path, prove complete route-writer coverage and lock ordering for nested-safe
+   `active_mutators`, monotonic `connection_epoch` and the shared reader/writer `route_gate`; a
+   worker-tail recheck is not an atomic epoch. Prefer a reviewed
    in-process DJI Fly subject getter after a no-op attach canary. Do not open `40007`/`40009`,
    substitute the two failed direct-USB routes, or guess a write. A later state change still
    requires baseline/readback/restore and independent RF reception.

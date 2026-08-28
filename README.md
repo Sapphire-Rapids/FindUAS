@@ -139,18 +139,26 @@ RID 状态帧以及 FlySafe `0x03/0x09`/`0x03/0x42` push，但后续静态审计
 它们的解码器和测试只保留为离线研究资产。精确 `07.00.0100` 实现仍待读取，但这种不确定性不能
 用来承担中断飞控链路的风险。
 
-当前同包覆盖更新为 `com.finduas.ridobserver` v0.8。它由隔离的 safe source set 构建，不申请任何
-权限，不含 service/receiver/provider、socket、`40007`/`40009`、DUML、`Parcel` 或 DJI 协议 Binder 应用事务。
-用户手动点击后，它只做 `protocol` Binder 存活/描述符检查，并只读回报 DJI Fly、`dpad_fuli`
-和固定 V0/V1 carrier 的 UID/进程/签名/ABI/路径、observer-view DAC/SELinux 与可读目标 `.so`
-哈希。v0.8 还对固定 `dpad_fuli` APK/DEX、framework/server 和 broker config/library 做互相
-独立的只读指纹判定，避免把相邻固件结论误投射到不同 live build。报告含 schema、run ID、
-开始/完成时间和本地复制按钮；它不启动 DJI 组件、不写属性、不发命令，所以结果只是下一阶段
-的环境门禁，不是 RID 状态或开关。当前发布工件大小为 `2,477,789` bytes，SHA-256 为
-`b67a99621440088a39d212483d2de69a47fdc26850b59ed7fecfa9e1e8c70fb1`；24/24 tests、lint、
-manifest/signature/zipalign 与 app-class DEX denylist 均通过，三次 clean build 与交付 APK
-字节一致。它仍是 work-only 研究工具，
-不进入本 MIT 应用的产品能力。
+当前同包安全替代为 `com.finduas.ridobserver` v0.10（versionCode 10，versionName
+`0.10.0-research`）。它仍是独立的 work-only Android 只读准入探针，不是 FindUAS macOS 的
+产品能力，也不是 RID 状态监听器、Remote ID 开关或地区切换工具。它不申请 Android 权限，只有
+一个 launcher Activity，不含 service、receiver、provider 或 native library，也不包含 socket、
+`40007`/`40009`、DUML、`Parcel`、DJI 应用协议 Binder 事务、进程执行、文件持久化、网络发送或
+agent/library attach/load 路径。
+
+v0.10 保留 v0.8 的只读环境清单，并只读取自身 `/proc/self/maps` 与该进程实际映射的
+`libart.so`。ART 判定要求两次完全相同的 maps 快照、严格且页对齐的 start/end/offset、无溢出且
+不越过文件的 coverage、非零设备与正 inode、`lstat` + `O_NOFOLLOW` 拒绝最终 symlink、纳秒级
+元数据稳定、整文件 SHA-256 与 GNU build ID。命中已知 profile 时还会核对 `Agent::Unload`
+（`0x5ccfa0 + 0x100`）与 `Runtime::AttachAgent`（`0x56bfc4 + 0xebc`）两个身份区间；探针不会
+解析为可调用地址、调用函数、attach 或 load。Activity 重建复用同一进程内快照，不会重复启动探针。
+
+最终候选为 2,570,983 bytes，SHA-256
+`fdad29bfb1237bc224a805d6eb5a99358a044bd226610d9f0fc33975d94b606c`。43/43 tests、Android
+lint、manifest、最终 DEX、APK Signature Scheme v2 与 zipalign 均通过；21/21 对抗变异被拒绝，
+两次 clean build 字节一致，独立审计无未解决 P0–P3。本轮只完成离线构建和审计，APK 尚未复制、
+安装或运行于 RC 2，因此没有 v0.10 实机兼容性结论。v0.9 与 v0.8 只作为封存前代保留，不再是
+当前安装或准入指令。
 
 这里有两条必须分开的证据。历史 observer 自己的目标事件 decoder 只接受 DUML encryption
 selector 为 0 的帧，因此其 payload 在 RC 2 localhost broker 边界是明文；这不证明 O4 空口为
@@ -167,6 +175,11 @@ payload；对 France `03/77` 即可保留 `[protocol_result,state]`，不必新�
 product139/France/EID 身份、loader 与连接 epoch 必须从当前 subject/session 逐项验证，任一未知
 都不得发送，也不能同时调用 typed GET。相邻 stock `dpad_fuli` 协议页不是替代方案：它不能
 表达 selector 3，并因 `Pack` Parcel 遗漏把 retry 恢复为 2，最坏会初发后再重发两次。
+最新字段复核同时纠正了早先的 retry 结论：`uav_cmd_req+0x08` 才是 retry，receiver index 在
+`+0x19`；product139 构造器初值为 3，静态 EID Characteristics 的 `+0x30` 初值为 0，所以
+初始 typed GET 保留 3；仅当运行期更新把该字节变为非零时才清为 0，而 typed SET 保留 3。
+首个 raw GET 会明确使用 retry 0 的实验室单发策略，以减少歧义；这
+不宣称与尚未闭合的 typed GET 运行时策略逐位相同。
 
 另一个 work-only 工件是 ARM64 JVMTI V0 attach canary，SHA-256 为
 `4a3867251a745ce5db6c0513c23def5c97e53a57e17f4d611621895e4e323c73`。此前缺少
@@ -174,7 +187,7 @@ product139/France/EID 身份、loader 与连接 epoch 必须从当前 subject/se
 独立审计确认 APK 无 DEX、权限、组件或 shared UID；唯一 AArch64 library 只执行
 `GetEnv(JVMTI)`、`GetVersionNumber`、`DisposeEnvironment` 和一条固定数值日志。它不枚举类、不取得 `JNIEnv`，也不含
 socket、文件/属性、进程、Binder、DUML、GET 或 SET。该工件尚未复制、安装或 attach；必须先取得
-v0.8 的完整实机门禁和无副作用、保留 stderr/退出码的 caller；即使 attach 成功也只证明加载/JVMTI
+v0.10 的完整实机门禁和无副作用、保留 stderr/退出码的 caller；即使 attach 成功也只证明加载/JVMTI
 可达，不证明 EID/RID 支持。相邻 stock `dpad_fuli` Shell 页会自动尝试 `adb shell su` 并执行
 `adb version`，还会丢 stderr/退出码，因此当前不得打开或用于 attach。
 
@@ -183,16 +196,75 @@ V1 France-EID semantic-anchor resolver 也只完成了离线实现与审计，�
 精确计数 `electronicIDBroadcastOn` 与 `electronicIDBroadcastExisted` 两个 generated thunk，并
 确认它们是否共享一个 ClassLoader；随后清理引用、释放本次 JVMTI environment，只输出数字计数。
 它没有加载/初始化类、访问字段、调用 Java 方法、GET/LISTEN/SET、socket、Binder 或 DUML，且从未
-复制到设备、安装或 attach。V1 只证明语义锚点拓扑，必须排在 v0.8 和 V0 之后另行准入，不能证明
+复制到设备、安装或 attach。V1 只证明语义锚点拓扑，必须排在 v0.10 和 V0 之后另行准入，不能证明
 France EID 可读，更不能证明存在 FAA/global RID 开关。
 
+离线的 V2.1 路由解析器也已经封存：APK SHA-256 为
+`7f0159619f89f7c6a9849b1028003a1070d97988838da7a6ef027e09626ada0d`，其中唯一 ARM64
+library 的 SHA-256 为
+`3c2a293e167531ecc9d352c2825ad20c8f35a3e829c66aad6896d06eabad3365`。它只匹配固定三套
+basename/GNU build-id/RVA/签名 profile、product139 France `EIDSwitch` 语义路由与
+`Characteristics::Invalid`；private exception-boundary gate 被编译为只读常量 0，因此即使所有
+前置条件成立也只会以 `EXCEPTION_BOUNDARY_UNPROVEN` 退出。两次 clean build 字节一致，独立审计
+还验证了 manifest、ELF、重定位、编译内 profile 表和 gate 数据流。它不含 DEX、组件、GET、SET、
+listen、send、socket 或 Binder，且从未复制、安装或 attach。该工件只用于冻结离线证据，**不得在
+RC 2 上安装或加载**。
+
+连接 epoch 的进一步审计也收紧了准入结论：正常 datalink add/remove 与工作闭包共享同一 worker，
+但 `ProductMgr::OnProductDidAdd/Remove` 由 listener 同步调用，其生产线程尚未证明；HardwareLayer 的
+全部变更入口也没有穷尽。因此“在 worker 队尾再次解析”最多得到 `STABLE_OBSERVED`，不是原子连接
+快照。下一版必须对外层 route writer 做嵌套安全的 `active_mutators` 与单调 `connection_epoch`
+计数，读端在同一闭包内双读并比较；任何可能发送的闭包还必须与所有 writer 共享读写
+`route_gate`，ACK、超时、失败与回滚收尾也要凭 operation token 重新解析。覆盖率、锁顺序或线程归属任一未证实，
+就保持 fail-closed，既不 GET 也不 SET。
+
+异常边界也不能靠“包一层 `catch (...)`”草率关闭。对 NDK 27 最小 AArch64 wrapper 的离线实测
+显示，除 personality 与 begin/end-catch 外还会引入 `_ZSt9terminatev`；三个 DJI library 又都允许
+符号抢占，必须在运行期证明 personality、throw/catch、TLS globals 与 unwind/resume 实际绑定到同一
+套 `libsdk_base.so` runtime。当前更小的候选会用 exact-build 栈内短字符串 `EIDSwitch`、栈内
+`[0,4,0]` prefix、官方 abstraction lookup 和 direct string lookup，去掉 target string/CacheKey
+构造及其 heap allocation；但 direct lookup 自身仍有 LSDA/shared-owner cleanup，所以仍是
+**NOT ADMITTED**，不会据此解除 V2.1 固定零门。
+
+运行时 native library 身份也补上了缺失的精确设计。对当前离线分析的官方 DJI Fly 1.21.10 APK
+profile，其 manifest 声明 `extractNativeLibs=true`，三个目标条目又都是 DEFLATED；RC 2 上的 live
+package 必须先完整命中该 profile，之后才允许把安装器解出的独立 ELF 文件作为候选。下一版必须同时
+满足完整 ELF SHA-256、前后两次 `/proc/self/maps` 的
+device/inode/offset 绑定，以及所有原始不可写 `PT_LOAD` 与当前内存逐字节一致；`apk!/`、deleted、
+memfd/匿名来源、读不到文件或 maps、权限/offset/映射 epoch 漂移都会失败关闭。build ID、basename 或
+内存哈希都不能降级替代。该设计尚未实现，也没有改变 V2.1 的 **DO NOT INSTALL OR ATTACH** 状态。
+
+raw GET 的回调生命周期也完成了离线复核，并否定了旧草案的“回调后静默 100 ms”规则。ACK 回调发生在
+pending 节点删除之前，timer 回调发生在复制 owner 销毁之前；`native_CancelSend()` 只异步排队清理，
+返回时也不能证明不会再有已越过 Stopper 的迟到回调。未来只有在注册完成、callback 已返回且
+in-flight 为 0、worker 队尾再次证明精确 pending handle 与 Stopper ID 都不存在、连接 epoch 仍稳定并
+确认 native code 仍驻留后，才可接受一次 GET。任何一步不能证明都返回 `UNKNOWN`，且不重试。
+
+为避免下一版再次把这些条件漏掉，raw GET 已经整理成固定状态机：numeric handle 之外还要有永不复用的
+operation generation；任何 task/callback 指针交给 DJI 前先取得 MappingLease；SDK wrapper admission 与
+helper callback in-flight 分开计数；只有 post-terminal worker fence 能提交结果。现有
+`SessionMgr::IsSending` 只能在 worker 上保守证明唯一 datalink/`03/77`/receiver tuple 已不在 pending
+map，不能按 handle 查询；`CallbackStopper` 又没有只读查询方法，绝不能用 `RemoveID` 冒充 probe。
+因此状态机虽已精确化，live hook 仍未完成，GET 继续是 **NOT ADMITTED**。
+
 Mac 端已经能打开 RC 2 的 ADB USB endpoints 并发送 `CNXN`，但 RC 2 没有返回 `AUTH` 或 `CNXN`；
-platform-tools 37 的 legacy/libusb 后端和 35.0.2 都保持 `offline`，因此没有取得 shell，也没有执行
-`adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB 存储都属于飞机，而不是 RC 2；一次
-误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全卸载该卷。后来用户用 RC 2 原生处理的
-microSD 成功安装了 DJI 签名的 PackageInstaller/FileManager helpers 和较早 observer，证明了无需
-Root/ADB 的人工更新路径。下一步是用 v0.8 同包覆盖旧版并回传 `COMPLETE` 的完整诊断页；在完成覆盖前不得点击旧版
-Start。当前 Mac 上的 45 GB 与 256 GB 卷仍都属于飞机，不得再把 RC 2 APK 复制到这两个卷。
+platform-tools 37 的 legacy/libusb 后端、精确 Dr-Muh pre-auth profile 和逐项改变 version、MAXDATA、
+banner、checksum 的实验都停在同一个约 15 秒超时。相邻官方 RC331 的未剥离 `adbd` 已给出精确解释：
+它在启动时用 DJI production/user-lock 逻辑覆盖普通 `ro.adb.secure` 决策，并在每次 `CNXN` 后再次
+检查 `ro.boot.mp_state=production && ro.boot.dbg_cnt<1`；命中时直接丢包，既不
+`send_auth_request()` 也不 `send_connect()`。因此当前失败点在 RSA 之前，反复删除 key、切换 USB
+调试或修改 token 之后的 AUTH 顺序都没有价值。静态代码中“首包直接公钥”只是一条尚未实机发送、
+可能弹窗并持久化授权的假设，不是成功结论；详见
+[docs/RC2_ADB_HANDSHAKE_RESEARCH.md](docs/RC2_ADB_HANDSHAKE_RESEARCH.md)。
+
+上述实验没有取得 shell，也没有执行 `adb install`。USB 父子拓扑还确认当时出现的 45 GB 与 256 GB
+存储都属于飞机，而不是 RC 2；一次误放到飞机机身存储的 APK 在精确哈希复核后已单独删除并安全
+卸载该卷。后来用户用 RC 2 原生处理的 microSD 成功安装了 DJI 签名的 PackageInstaller/FileManager
+helpers 和较早 observer，证明了无需 Root/ADB 的人工更新路径。当前下一步是在取得单独实机 staging
+授权后，用 v0.10 同包覆盖旧版并回传 `COMPLETE` 的完整诊断页；在完成覆盖前不得点击旧版 Start。
+2026-08-28 13:11 CST 重新接线后，Mac 同时看见飞机 `2ca3:0020` 与 RC 2 `2ca3:1021`，但 RC 2
+的 ADB 仍为 `offline`，且当时没有任何外接存储卷挂载。此前出现的 45 GB 与 256 GB 卷已经确认都
+属于飞机，今后也不得把 RC 2 APK 复制到这些飞机卷。
 
 `rid_broadcast_effect_icloud_control` 也完成了一次匿名最小云查询：命名空间存在，但当前返回只包含
 产品 158/159 的全零广播效果配置，产品 139/WA150 不在响应中。这进一步排除了把该字段直接当成
@@ -328,6 +400,8 @@ Application Support：可能包含 UAS/登记标识、接收器标识、厂商�
 - [docs/PROTOCOL.md](docs/PROTOCOL.md)：独立整理的 BLE 互操作说明；
 - [docs/DJI_RC2_STATE_RESEARCH.md](docs/DJI_RC2_STATE_RESEARCH.md)：DJI Fly/RC 2 对 Remote ID、
   账号同步、运行时飞行限制状态及明确授权的有界地区实验研究；不属于 FindUAS 产品能力；
+- [docs/RC2_ADB_HANDSHAKE_RESEARCH.md](docs/RC2_ADB_HANDSHAKE_RESEARCH.md)：RC 2 v07 的脱敏 USB/
+  ADB 实机矩阵与相邻 `adbd` 生产锁静态根因；不包含 Root、解锁或固件修改步骤；
 - [docs/DJI_RC2_RF_POWER_RESEARCH.md](docs/DJI_RC2_RF_POWER_RESEARCH.md)：DJI Fly/RC 2 的地区码、
   FCC/CE 法规档案与 O4 射频功率控制面的以只读为主研究；记录的有界 country 事务不包含功率写入，
   仓库也不提供可执行功率修改包；

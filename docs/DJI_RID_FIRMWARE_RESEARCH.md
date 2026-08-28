@@ -253,10 +253,15 @@ static anchors, not permission to invoke a service or guess a writer.
 
 The base properties are debug-friendly, but the DJI-modified `adbd` overrides the ordinary
 `ro.adb.secure` result with a production/user-lock function. Its decision combines production
-state, debug count, user/lockscreen state, and a one-time authorization flag. Therefore
-`ro.adb.secure=0` is not proof of an unauthenticated root shell. If a future ADB test is separately
-authorized, it must use an isolated disposable key and stop after a handshake plus `id` if the
-production gate blocks access.
+state, debug count, user/lockscreen state, and a one-time authorization flag. Exact live testing
+then showed that the controller accepts host `CNXN` USB writes but returns no ADB packet. The
+adjacent unstripped binary explains this earlier stop: its `CNXN` path independently drops the
+packet when `ro.boot.mp_state=production` and `ro.boot.dbg_cnt<1`, before it can send an auth token
+or connection reply. Therefore `ro.adb.secure=0` is not proof of an unauthenticated root shell, and
+post-token signature/public-key variations cannot repair the observed path. See
+[`RC2_ADB_HANDSHAKE_RESEARCH.md`](RC2_ADB_HANDSHAKE_RESEARCH.md). A future ADB test requires separate
+authorization, an isolated disposable key, a handshake-only first phase, and no `OPEN` or command
+until that phase has received and validated a real connection reply.
 
 Root or bootloader unlock is therefore not the next step. A separately authorized, allow-listed
 system-UID check of `id` and `pm path dji.go.v5`, followed only after review by a controlled copy of

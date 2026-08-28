@@ -40,6 +40,9 @@ network services without an explicit product decision and privacy review.
 - `docs/REMOTE_ID_COMPATIBILITY_TESTING.md`: the safety boundary, regional profiles, and phased
   design for isolated Remote ID receiver compatibility tests. It is not an aircraft-region or
   broadcast-control specification.
+- `docs/RC2_ADB_HANDSHAKE_RESEARCH.md`: redacted live USB/ADB evidence and the exact adjacent
+  DJI-production-lock branch that explains the RC 2 `CNXN` silence. It is not a root or unlock
+  procedure.
 - `docs/ARCHITECTURE.md`: data flow, ownership, persistence, and extension seams.
 - `scripts/`: local checks and clean `.app` packaging.
 - `Packaging/Info.plist`: bundle identity and macOS privacy usage descriptions.
@@ -205,35 +208,52 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     remain true, but `connect()` itself can take over the single active `40007`/`40009` fd. Never
     install or start those versions, reconnect them, or reuse their live procedure. Their 44/44,
     31/31 and 20/20 tests cover offline decoding only, not broker coexistence safety. The safe
-    replacement v0.8 keeps the same package/signature for an in-place update but contains no
+    replacement v0.10 keeps the same package/signature for an in-place update and contains no
     permissions, service, socket, DUML, `Parcel`, DJI protocol Binder application transaction,
-    external Activity launch or process execution. It only inventories the live Binder descriptor,
-    named package/process/UID/path/native-library facts, fixed package/DEX/framework/broker hashes,
-    and observer-view access; report schema/timestamps and a
-    local clipboard copy do not broaden that boundary. Keep it work-only and do not describe a
-    successful probe as a RID result or authorization. The current artifact is versionCode 8,
-    SHA-256 `b67a99621440088a39d212483d2de69a47fdc26850b59ed7fecfa9e1e8c70fb1`,
-    2,477,789 bytes; 24 tests, lint, manifest/signature/zipalign and app-class DEX denylist pass,
-    and three clean builds match byte-for-byte.
-34. Product-139 France EID and FlySafe type-6 are separate mechanisms. The exact France lane is
-    GET `[02]`, SET `[00]/[01]`, GET ACK `[result,state]`, SET ACK `[result]`, 500 ms and retry 0;
-    it is not FAA/global RID. Two fixed direct-USB clear GET routes returned no canonical ACK, so
-    the live private DJI Fly route/state is still unknown. The old `EU_CE_enable_c0_rid_0` hash
+    process execution, file persistence, network send, packaged native library, or agent/library
+    attach/load path. It inventories the live Binder descriptor, named package/process/UID/path/
+    native-library facts, fixed package/DEX/framework/broker hashes, observer-view access, and a
+    fail-closed self-process ART identity. The ART chain requires two identical normalized maps
+    snapshots, strict nonzero/page-aligned/bounded geometry, nonzero device and positive inode,
+    symlink-safe descriptor identity, nanosecond metadata stability, whole-file SHA-256 and GNU
+    build ID; a known profile additionally requires the named `Agent::Unload` and
+    `Runtime::AttachAgent` ranges. It resolves or invokes neither range. Keep it work-only and do
+    not describe a successful probe as a RID result or authorization. The current candidate is
+    versionCode 10, SHA-256
+    `fdad29bfb1237bc224a805d6eb5a99358a044bd226610d9f0fc33975d94b606c`,
+    2,570,983 bytes; 43 tests, lint, manifest/final-DEX/signature/zipalign, 21 adversarial
+    mutations, and two byte-identical clean builds pass. Independent audit found no unresolved
+    P0–P3, but v0.10 has not been copied, installed, or run on RC 2. Sealed v0.8/v0.9 are provenance
+    records, not current staging instructions.
+34. Product-139 France EID and FlySafe type-6 are separate mechanisms. The exact France lane uses
+    GET `[02]`, SET `[00]/[01]`, GET ACK `[result,state]`, SET ACK `[result]` and a 500 ms timeout;
+    it is not FAA/global RID. A corrected request-layout audit shows that `uav_cmd_req+0x08` is
+    `retryTimes`, receiver index is at `+0x19`, and the product-139 constructor initializes retry to
+    `3`. Static product-139 EID registration initializes Characteristics `+0x30` to `0`, so the
+    initial typed GET retains `3`; the typed GET helper clears it to `0` only if a runtime
+    Characteristics update makes that byte nonzero. The current live value is not yet closed. The
+    typed SET helper retains `3`, meaning the initial SET plus at most three retransmissions. Two
+    fixed direct-USB clear GET routes returned no canonical ACK, so the live private DJI Fly
+    route/state is still unknown. The old `EU_CE_enable_c0_rid_0` hash
     parameter is an app-owned EU/CE/C0 policy input; current F7 status `03` provides no metadata,
     snapshot, or rollback target, so F9 must not be sent.
-35. The current rootless admission sequence is fail closed: install v0.8 over any historical
-    observer; require its exact live package/UID/signature/ABI/debuggable/SELinux/upgrade-marker and
-    Binder-descriptor results. The adjacent stock `dpad_fuli` Shell page is not an admitted caller:
+35. The current rootless admission sequence is fail closed: only after separate staging
+    authorization, install v0.10 over any historical observer; require its exact live package/UID/
+    signature/ABI/debuggable/SELinux/upgrade-marker, Binder-descriptor and ART-identity results, and
+    remember that v0.10 has not yet received a device-runtime result. The adjacent stock
+    `dpad_fuli` Shell page is not an admitted caller:
     opening it automatically attempts `adb shell su`, writes a test command and runs `adb version`,
     while its executor drops stderr and exit status. Do not open it. Require a separately audited,
     side-effect-free, result-preserving UID1000 caller before V0 or transaction-1 `isEnable`, and before
     any transaction 3/4 carrying a `Pack`/DUML request. Transaction 1 itself is an application-defined
     Binder transaction and proves neither Parcelable compatibility nor send authorization. A France
     EID Binder GET remains prohibited until the exact live manager, callback and `Pack` Parcelable
-    ABI are recovered and the route preserves the native selector/retry contract. The current
-    adjacent-ABI artifact fails those final gates: `maxRetryCnt=0` is not parceled and reconstructs as
-    default `2` (potentially three sends), while its selector `0` differs from DJI Fly product-139's
-    native selector `3`. If those gaps cannot be closed, use a reviewed in-process getter that reuses
+    ABI are recovered and the route preserves an explicitly chosen, audited selector/retry profile.
+    The current adjacent-ABI artifact fails those final gates: `maxRetryCnt` is not parceled and
+    reconstructs as default `2` (potentially three sends), while its selector `0` differs from DJI
+    Fly product-139's native selector `3`; it reproduces neither the conditional typed GET policy
+    nor the typed SET retry value `3`. If those gaps cannot be closed, use a reviewed in-process
+    getter that reuses
     DJI Fly's initialized subject; never fall back to a second broker socket. Static enumeration of
     every externally reachable `dpad_fuli` component found no fixed-argv, output-preserving UID1000
     caller: `DevActivity` ignores Intent extras, the Shell Activity is private and invokes the unsafe
@@ -244,7 +264,9 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     page is also prohibited for EID: it has no selector/retry controls, leaves selector 0 and loses
     `maxRetryCnt` across Parcel, reconstructing retry 2. The preferred conditional V2 getter is
     DJI Fly's own `JNIRawData.native_SendData`, which can reuse the initialized SessionMgr and return
-    raw ACK payload. Do not deploy it until current productId/deviceId/senderIndex/HostID,
+    raw ACK payload. Its first reviewed GET profile deliberately requests retry `0` as a laboratory
+    single-shot; this is safer and deterministic but is not claimed to be bit-for-bit equivalent to
+    the unresolved typed GET policy. Do not deploy it until current productId/deviceId/senderIndex/HostID,
     product139/France/EID identity, loader and connection epoch are resolved from the live subject;
     never combine it with a typed GET.
 36. The work-only ARM64 JVMTI V0 canary (APK SHA-256
@@ -254,8 +276,9 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     `DisposeEnvironment` and one fixed
     numeric log. It deliberately omits `GetLoadedClasses`/`JNIEnv` and all DJI classes/methods,
     socket, file/property, process, Binder, DUML and SET paths. The previous artifact lacked
-    environment disposal and is revoked. Never stage V0 before v0.8 plus the caller gate close
-    the live debug/ABI/package/helper/SELinux and target-load-path gates. Canary success proves only
+    environment disposal and is revoked. Never stage V0 until a complete live v0.10 result exists
+    and a caller-gate review closes the live debug/ABI/package/helper/SELinux and target-load-path
+    gates. Canary success proves only
     loader/JVMTI reachability, not France EID, FAA/global RID or setter safety.
 37. N3Live evidence is pinned to revision `bb254b0d0b1f5ac79462e9fe3ea986fc91adeec0`.
     Keep it separate from the retired observer: N3Live reads Goggles N3 USB IF4, has no
@@ -285,8 +308,67 @@ Preserve these behaviors unless new captured evidence proves they are wrong:
     exactly the generated `electronicIDBroadcastOn` and `electronicIDBroadcastExisted` thunk
     signatures, checks shared-ClassLoader cardinality, cleans all references/allocations, disposes
     its JVMTI environment, and logs numeric counts. It does not load/initialize a class, access a
-    member, invoke Java, GET/LISTEN/SET, or use socket/Binder/DUML. Never stage it before v0.8 and
-    V0 pass their separate gates; success proves topology only, not EID readability or RID control.
+    member, invoke Java, GET/LISTEN/SET, or use socket/Binder/DUML. Never stage it before a complete
+    live v0.10 result and V0 pass their separate gates; success proves topology only, not EID
+    readability or RID control.
+42. The work-only ARM64 JVMTI V2.1 route resolver is sealed as APK SHA-256
+    `7f0159619f89f7c6a9849b1028003a1070d97988838da7a6ef027e09626ada0d`; its sole packaged
+    library has SHA-256 `3c2a293e167531ecc9d352c2825ad20c8f35a3e829c66aad6896d06eabad3365`.
+    It matches only fixed basename/GNU-build-ID/RVA/signature profiles and the product-139 France
+    `EIDSwitch` semantic route; it does not establish whole-file runtime identity. Its private
+    exception-boundary gate is an immutable zero and its
+    terminal result is `EXCEPTION_BOUNDARY_UNPROVEN`; it has no DEX, component, GET, SET, listen,
+    send, socket or Binder path. It has never been copied, installed or attached. Keep it permanently
+    off-device unless a later, separately audited artifact receives a new explicit admission.
+43. Do not claim a global same-worker connection epoch. Only the normal datalink add/remove path is
+    proven to post to the worker used by `RunOnWorkThread`; ProductMgr listener callbacks and the
+    complete HardwareLayer mutation surface remain thread-unknown. A worker-tail recheck therefore
+    yields only `STABLE_OBSERVED`. Any future request path must fail closed until outer route writers
+    are covered by nested-safe `active_mutators` plus a monotonic `connection_epoch`, reader snapshots
+    double-check both values, and all writers and the final request closure share a reviewed reader/
+    writer `route_gate`. ACK, timeout and rollback finalizers must use an operation token and re-resolve
+    the route rather than trusting a stale pointer.
+44. A three-forwarder C++ catch boundary is rejected. The exact minimal NDK 27 carrier also imports
+    `_ZSt9terminatev`, and any `_Unwind_Resume` import fails because the exact `libsdk_base.so` has
+    no dynamic definition to forward. More importantly, live personality/throw/catch/TLS/resume
+    GOT/PLT coherence across the three interposable DJI DSOs is unproved. Prefer the smaller exact-
+    build stack-SSO `"EIDSwitch"` + stack `[0,4,0]` + official abstraction lookup + direct string
+    characteristics route for future offline design, but keep it NOT ADMITTED: direct lookup still
+    has target LSDA/shared-owner cleanup and does not make native faults or terminate catchable.
+45. Build ID, basename and entry-byte checks do not establish whole-file runtime identity. For the
+    offline official DJI Fly 1.21.10 APK profile, only live extracted regular ELF sources may be
+    considered, and they require exact
+    whole-file SHA-256, two `/proc/self/maps` device/inode/offset snapshots, and byte comparison of
+    every original non-writable `PT_LOAD` against the live mapping. `apk!/`, deleted, memfd or
+    anonymous sources, unreadable inputs, permission/offset drift, or linker/mapping epoch changes
+    are terminal. Do not add a ZIP, build-ID-only or memory-only fallback to this profile. This is a
+    future design gate and does not authorize installing or attaching V2.1.
+46. A Java terminal callback, `native_CancelSend()` return, or a fixed quiet interval is not a
+    quiescence boundary for the same-owner raw GET. ACK delivery precedes pending-node erase, timer
+    delivery precedes copied-owner destruction, and explicit cancel posts core cleanup after
+    removing the SDK `CallbackStopper` ID. A future GET must prove ordered registration,
+    callback-return/in-flight zero, exact pending-handle and Stopper-ID absence at a post-terminal
+    worker-tail fence, stable lifecycle/epoch, and native mapping retention. Any unavailable proof
+    is `UNKNOWN` with no retry. This callback audit does not authorize GET or SET.
+47. The canonical future raw-GET quiescence contract uses a non-reused operation generation,
+    MappingLease before any task/callback pointer escape, exact registration witness, separate
+    SDK-wrapper admission and helper-callback in-flight counters, and a completed post-terminal
+    worker-tail fence. Worker-only `SessionMgr::IsSending` can conservatively prove absence of the
+    unique datalink/03/77/live-receiver tuple, but is not handle-specific. `CallbackStopper` exposes
+    no read predicate; never call `RemoveID` as a query. Until a locked exact-handle witness and the
+    remaining lifecycle/epoch/fence hooks exist, the state machine is design-only and GET remains
+    NOT ADMITTED.
+48. The live RC 2 ADB failure occurs before RSA authentication. Interface 2 is `ff/42/01`, OUT
+    `0x03`, IN `0x84`; stock ADB and the pinned Dr-Muh pre-auth profile both transmit `CNXN` and
+    receive no packet. The exact adjacent unstripped `adbd` overwrites the ordinary
+    `ro.adb.secure` decision with `is_dji_production_lock()` and independently drops `CNXN` when
+    `ro.boot.mp_state=production` and `ro.boot.dbg_cnt<1`, before `send_auth_request()` or
+    `send_connect()`. This explains `offline`; key deletion, USB-debugging toggles and post-token
+    AUTH variants cannot repair it. Static control flow suggests that a first-packet
+    `AUTH/RSAPUBLICKEY` may reach the authorization prompt, but that has not been sent and is a
+    state-changing hypothesis, not a result. It requires new action-specific authorization, a
+    disposable isolated key, no `OPEN`, a user watching the screen, and key deletion afterwards.
+    See `docs/RC2_ADB_HANDSHAKE_RESEARCH.md`.
 
 ## Concurrency and state ownership
 
@@ -460,8 +542,10 @@ and adjacent-package presence is not live-device proof. Do not launch its update
 FTM, SDR, MCU, log-toggle, or other factory-test functions for exploration.
 
 Do not infer an open root shell from `ro.debuggable=1` or `ro.adb.secure=0`: the analysed DJI
-`adbd` replaces the ordinary decision with a production/user-lock gate. Device activation/crypto
-state is also distinct from DJI user-account login.
+`adbd` replaces the ordinary decision with a production/user-lock gate. Its per-`CNXN` production
+branch explains the live pre-RSA silence; preserve the exact evidence and unverified first-packet
+AUTH boundary in `docs/RC2_ADB_HANDSHAKE_RESEARCH.md`. Device activation/crypto state is also
+distinct from DJI user-account login.
 
 Do not unlock the bootloader, root/Magisk-patch, modify boot, flash, enable ADB, authorize a
 persistent ADB key, or execute device shell commands without a new, action-specific authorization
