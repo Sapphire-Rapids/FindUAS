@@ -12,6 +12,12 @@
 > 的受支持控制客户端，也不是 FindUAS 官方软件。“兼容性实验室”另含一组实验性的固定 DJI USB
 > 只读诊断；没有通用命令入口，也不能写飞机或遥控器。
 
+> [!NOTE]
+> DJI RC 2 / Mini 5 Pro 的规范研究档案已迁移到独立仓库
+> [DJI-RC2-Mini5Pro-Research](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research)。
+> 本仓库现有 DJI 文档保留为历史快照和接收器兼容性上下文；后续的新 claim、纠正、工件身份与
+> coding-agent 交接记录以独立仓库为准。
+
 ## 下载
 
 预编译的 Apple Silicon 版本见

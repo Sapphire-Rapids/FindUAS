@@ -26,6 +26,10 @@ stable releases begin.
 
 ### Documentation
 
+- Moved the canonical DJI RC 2 / Mini 5 Pro research record to the independent
+  [DJI-RC2-Mini5Pro-Research](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research)
+  repository. Existing DJI pages here remain historical snapshots and receiver-compatibility
+  context; future claims and corrections are maintained in the dedicated archive.
 - Defined the boundary and phased design for isolated Remote ID region-profile compatibility
   testing, distinct from aircraft broadcast, regulatory-area, and RF-power controls.
 - Recorded that USB visibility of the current DJI Mini 5 Pro / DJI RC 2 pair is not an official

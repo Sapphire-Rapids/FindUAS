@@ -19,6 +19,16 @@ compiled GET requests described below; it is not a supported DJI control session
 Do not add accounts, cloud telemetry, background uploads, registration-database lookups, or other
 network services without an explicit product decision and privacy review.
 
+## RC 2 / Mini 5 Pro research archive split
+
+The canonical DJI RC 2 / Mini 5 Pro evidence archive now lives in
+[DJI-RC2-Mini5Pro-Research](https://github.com/Sapphire-Rapids/DJI-RC2-Mini5Pro-Research).
+Existing DJI research documents in this repository are retained as historical snapshots and
+receiver-integration context. Put new standalone claims, corrections, artifact identities,
+negative results, and research handoff records in the dedicated repository. Changes here should be
+limited to the FindUAS receiver client, its fixed read-only compatibility surface, or a concise link
+to a canonical claim in the dedicated archive.
+
 ## Repository map
 
 - `Sources/FindUASCore/`: Apple-framework-free framing, configuration, decoding, and models.
